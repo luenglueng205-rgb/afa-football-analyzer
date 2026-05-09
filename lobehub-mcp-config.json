@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "afa-football-analyzer": {
+      "command": "python3",
+      "args": [
+        "-m", "afa_mcp.server"
+      ],
+      "env": {
+        "AFA_MCP_PORT": "18900",
+        "AFA_DATA_DIR": "/Users/jand/Desktop/afa-mcp-package/data",
+        "PYTHONPATH": "/Users/jand/Desktop/afa-mcp-package/src"
+      },
+      "description": "竞彩足球+北京单场12玩法量化分析引擎 — 15个MCP工具"
+    }
+  }
+}

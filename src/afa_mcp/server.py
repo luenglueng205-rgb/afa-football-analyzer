@@ -124,7 +124,13 @@ def score_probability_matrix(home_goals_expected: float, away_goals_expected: fl
     for h in range(max_g+1):
         for a in range(max_g+1):
             p = (home_goals_expected**h*math.exp(-home_goals_expected)/math.factorial(h)) * (away_goals_expected**a*math.exp(-away_goals_expected)/math.factorial(a))
-            if h>a: hw+=p; elif h==a: dw+=p; else: aw+=p; goals[h+a]=goals.get(h+a,0)+p
+            if h > a:
+                hw += p
+            elif h == a:
+                dw += p
+            else:
+                aw += p
+            goals[h+a] = goals.get(h+a, 0) + p
     up=sum(goals.get(i,0) for i in range(3,17)); down=1-up
     return {"WDL":{"home_win":round(hw,4),"draw":round(dw,4),"away_win":round(aw,4)},
             "goals_dist":{str(k):round(goals[k],4) for k in sorted(goals)},

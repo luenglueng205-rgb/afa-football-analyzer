@@ -40,8 +40,8 @@ full = [
 afa-mcp-server = "afa_mcp.server:main"
 
 [project.urls]
-Homepage = "https://github.com/user/afa-football-analyzer"
-Repository = "https://github.com/user/afa-football-analyzer"
+Homepage = "https://github.com/luenglueng205-rgb/afa-football-analyzer"
+Repository = "https://github.com/luenglueng205-rgb/afa-football-analyzer"
 
 [tool.setuptools.packages.find]
 where = ["src"]
