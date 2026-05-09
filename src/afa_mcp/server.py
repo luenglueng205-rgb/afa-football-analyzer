@@ -355,6 +355,155 @@ def evolution_status() -> dict:
         "zsa_thresholds": HYPERPARAMS.get('zsa_thresholds', {}),
     }
 
+# ===== 20. AI原生：比赛叙事分析 =====
+@mcp.tool()
+def match_narrative_analyzer(home_team: str, away_team: str, home_rank: int = 0, away_rank: int = 0,
+                              home_form: str = "", away_form: str = "", league: str = "",
+                              is_derby: bool = False, is_relegation: bool = False,
+                              injuries_home: int = 0, injuries_away: int = 0) -> dict:
+    """AI原生：比赛叙事分析。不是算数，而是读懂比赛背后的故事。
+    
+    返回结构化的叙事因子，供Agent进行深度推理。
+    """
+    # Narrative scoring
+    narratives = []
+    intensity = 5.0  # base
+    
+    # Derby bonus
+    if is_derby:
+        narratives.append("🔥 德比战 — 火药味十足，实力差距被缩小")
+        intensity += 3.0
+    
+    # Relegation fight
+    if is_relegation:
+        narratives.append("⚔️ 保级生死战 — 战意远超实力")
+        intensity += 3.0
+    
+    # Form analysis
+    if home_form:
+        hw = home_form.upper().count('W')
+        if hw >= 4:
+            narratives.append(f"📈 {home_team} 连胜动量 — 信心爆棚")
+            intensity += hw
+        elif hw <= 1:
+            narratives.append(f"📉 {home_team} 状态低迷 — 急需反弹")
+            intensity -= 2
+    
+    if away_form:
+        aw = away_form.upper().count('W')
+        if aw >= 4:
+            narratives.append(f"📈 {away_team} 连胜 — 客场强势")
+            intensity -= 1
+        elif aw <= 1:
+            narratives.append(f"📉 {away_team} 状态崩盘 — 客场虫预警")
+            intensity += 2
+    
+    # Injury impact
+    if injuries_home >= 3:
+        narratives.append(f"🏥 {home_team} 伤兵满营 — 阵容受损{injuries_home}人")
+        intensity -= injuries_home
+    if injuries_away >= 3:
+        narratives.append(f"🏥 {away_team} 伤病困扰 — 客场更难")
+        intensity += injuries_away
+    
+    # Rank gap
+    if home_rank > 0 and away_rank > 0:
+        gap = abs(home_rank - away_rank)
+        if gap > 10:
+            narratives.append(f"📊 排名悬殊(gap={gap}) — 强弱分明但需防冷")
+    
+    # League context
+    league_hints = {
+        '英超': '快节奏身体对抗,下半场进球多',
+        '德甲': '高位压迫大比分,屠杀型比赛多',
+        '意甲': '防守纪律强,小球平局多,1-0常见',
+        '法乙': '平局率31%,法乙是平局之王',
+        '挪超': '大球联赛,场均3.17球',
+        '意乙': '平局率31%,意乙小球为主',
+    }
+    
+    return {
+        "match": f"{home_team} vs {away_team}",
+        "intensity": round(intensity, 1),
+        "narratives": narratives,
+        "league_style": league_hints.get(league, "标准联赛,按通用模型分析"),
+        "suggested_play_types": _suggest_plays(intensity, league),
+        "risk_factors": _risk_flags(home_rank, away_rank, is_derby, injuries_home + injuries_away),
+        "ai_reasoning_prompt": f"先读懂这场比赛: {', '.join(narratives) if narratives else '常规比赛,无特殊叙事'}。再判断12种玩法中哪些最有价值。不要套公式。",
+    }
+
+def _suggest_plays(intensity: float, league: str) -> list:
+    """AI推理：基于比赛特征推荐最佳玩法类型"""
+    suggestions = []
+    if intensity > 8:
+        suggestions.append({"play": "SPF", "reason": "高强度比赛,胜负方向最确定", "priority": 1})
+        suggestions.append({"play": "HF/FT", "reason": "动量明确,半全场值得关注", "priority": 2})
+    elif intensity > 6:
+        suggestions.append({"play": "SPF", "reason": "中等强度,主胜方向有价值", "priority": 1})
+        suggestions.append({"play": "TTG", "reason": "进球数可预测性较高", "priority": 2})
+    else:
+        suggestions.append({"play": "TTG", "reason": "低强度,进球数是更稳定的选择", "priority": 1})
+    
+    if league == '意乙' or league == '法乙':
+        suggestions.append({"play": "SPF(平局)", "reason": f"{league}平局率31%,防守平局有价值", "priority": 3})
+    
+    return suggestions
+
+def _risk_flags(hr: int, ar: int, derby: bool, injuries: int) -> list:
+    risks = []
+    if derby: risks.append("德比战不确定性高")
+    if injuries >= 5: risks.append("伤病严重影响阵容完整度")
+    if abs(hr - ar) > 12: risks.append("排名悬殊警惕冷门")
+    return risks
+
+# ===== 21. AI原生：市场信号研判 =====
+@mcp.tool()
+def market_signal_analyzer(odds_home: float, odds_draw: float, odds_away: float,
+                           opening_home: float = 0, opening_draw: float = 0, opening_away: float = 0) -> dict:
+    """AI原生：市场信号研判。不是算凯利值，而是解读赔率背后的市场心理。
+    
+    相比传统的Kelly值计算，这个工具告诉Agent：赔率在讲什么故事？
+    """
+    signals = []
+    confidence = 50
+    
+    # Favorite detection
+    if odds_home < 1.50:
+        signals.append({"signal": "强队信号", "detail": f"主胜赔率{odds_home}极低,市场强烈看好主队", "action": "做串关定胆,不宜单买(回报低)"})
+        confidence += 10
+    elif odds_home > 3.50:
+        signals.append({"signal": "冷门信号", "detail": f"主胜赔率{odds_home}极高,市场几乎放弃主队", "action": "搏冷价值大,但需确认基本面"})
+        confidence -= 10
+    
+    # Movement analysis
+    if opening_home > 0 and opening_home != odds_home:
+        change_pct = (odds_home - opening_home) / opening_home * 100
+        if change_pct < -5:
+            signals.append({"signal": "资金涌入", "detail": f"赔率降{abs(change_pct):.0f}%,真实看好非诱盘", "action": "可以跟"})
+            confidence += 15
+        elif change_pct > 8:
+            signals.append({"signal": "资金撤离", "detail": f"赔率升{change_pct:.0f}%,庄家不看好或有负面消息", "action": "谨慎或放弃"})
+            confidence -= 20
+    
+    # Draw signal
+    if odds_draw < 3.20:
+        signals.append({"signal": "平局预警", "detail": f"平赔{odds_draw}偏低,平局概率被市场认可", "action": "关注平局玩法"})
+    elif odds_draw > 4.50:
+        signals.append({"signal": "胜负局", "detail": "平赔极高,市场认为必分胜负", "action": "不适合投平局"})
+    
+    return {
+        "signals": signals,
+        "confidence": max(0, min(100, confidence)),
+        "market_story": _tell_market_story(odds_home, odds_draw, odds_away),
+        "ai_prompt": "不要只看凯利值。读一下market_story,理解市场在讲什么故事，再结合基本面判断。"
+    }
+
+def _tell_market_story(oh, od, oa):
+    if oh < 1.40: return f"市场叙事: '这是一场碾压局'(主胜{oh}),但注意赔率<1.30时82.8%实测胜率虽高,回报有限"
+    if oh > 3.0: return f"市场叙事: '冷门温床'(主胜{oh}),但>2.80时实测胜率仅23%,需基本面确认"
+    if od < 3.0: return f"市场叙事: '平局是认真选项'(平赔{od}),不宜单选胜负"
+    return f"市场叙事: '均衡之战',三方赔率接近,任何结果都不意外"
+
 def main():
     """Entry point for `afa-mcp-server` CLI command."""
     mcp.run(transport="stdio")
