@@ -13,11 +13,7 @@ def _load_json(name: str) -> dict:
 ELO_DB = _load_json("elo_ratings.json")
 HYPERPARAMS = _load_json("../configs/hyperparams.json")
 
-mcp = FastMCP(
-    "afa-football-analyzer",
-    port=int(os.environ.get("AFA_MCP_PORT", "18900")),
-    description="AFA足球量化分析引擎 — 竞彩+北单12玩法 · 15工具 · 15.9万场历史数据校准"
-)
+mcp = FastMCP("afa-football-analyzer")
 
 # ===== 1. ELO评分 =====
 @mcp.tool()
