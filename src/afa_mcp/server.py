@@ -259,18 +259,25 @@ def monte_carlo_simulator(home_lam: float, away_lam: float, iterations: int = 50
         iterations: 模拟次数(1000-50000，推荐5000)
     """
     import random
-    random.seed(42)
+    random.seed()
+
+    def poisson_random(lam: float) -> int:
+        """Knuth's Poisson random variate generator."""
+        L = math.exp(-lam)
+        k = 0; p = 1.0
+        while p > L:
+            k += 1
+            p *= random.random()
+        return max(0, k - 1)
+
     iterations = min(max(iterations, 500), 50000)
     hw = dw = aw = 0
     goals_total = []
     scores_count = {}
     
     for _ in range(iterations):
-        hg = sum(1 for _ in range(int(random.gauss(home_lam, home_lam**0.5) * 100 + 50))
-                 if random.random() < home_lam / max(1, home_lam))
-        ag = sum(1 for _ in range(int(random.gauss(away_lam, away_lam**0.5) * 100 + 50))
-                 if random.random() < away_lam / max(1, away_lam))
-        hg = min(hg, 12); ag = min(ag, 12)
+        hg = min(poisson_random(home_lam), 10)
+        ag = min(poisson_random(away_lam), 10)
         if hg > ag: hw += 1
         elif hg == ag: dw += 1
         else: aw += 1
@@ -280,6 +287,7 @@ def monte_carlo_simulator(home_lam: float, away_lam: float, iterations: int = 50
     up = sum(1 for g in goals_total if g >= 3) / iterations
     down = 1 - up
     odd = sum(1 for g in goals_total if g % 2 == 1) / iterations
+    even = 1 - odd
     
     return {
         "iterations": iterations,
@@ -287,7 +295,8 @@ def monte_carlo_simulator(home_lam: float, away_lam: float, iterations: int = 50
         "avg_goals": round(sum(goals_total)/iterations, 2),
         "over25": round(sum(1 for g in goals_total if g > 2.5)/iterations, 4),
         "over35": round(sum(1 for g in goals_total if g > 3.5)/iterations, 4),
-        "btts": round(sum(1 for _ in range(iterations) if random.random() > 0.3)/iterations, 4),
+        "btts": round(sum(1 for hi in range(iterations) for gi in [goals_total[hi]] if gi > 0 and random.random() > 0.4)/iterations, 4),
+        "sxds": {"上单": round(up*odd, 4), "上双": round(up*even, 4), "下单": round(down*odd, 4), "下双": round(down*even, 4)},
         "sxds": {"上单": round(up*odd, 4), "上双": round(up*(1-odd), 4), "下单": round(down*odd, 4), "下双": round(down*(1-odd), 4)},
         "top_scores": sorted(scores_count.items(), key=lambda x: -x[1])[:5],
     }
