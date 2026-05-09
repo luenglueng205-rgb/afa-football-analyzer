@@ -85,6 +85,95 @@ def comprehensive_match_analysis(home_team: str, away_team: str,
     w = HYPERPARAMS.get('weights', {'fundamental_quant': 0.19, 'contrarian_quant': 0.468, 'smart_money_quant': 0.342})
     return {"match": f"{home_team} vs {away_team}", "elo": e, "odds": o, "kelly": k, "evolution_weights": w}
 
+# ===== 22. AI原生：思维外壳 =====
+@mcp.tool()
+def think_match(home_team: str, away_team: str,
+                odds_home: float, odds_draw: float, odds_away: float,
+                league: str = "", home_elo: float = 1500, away_elo: float = 1500,
+                home_form: str = "", away_form: str = "",
+                home_rank: int = 0, away_rank: int = 0) -> dict:
+    """AI原生：比赛全维思考。调用所有计算工具+叙事分析+市场研判，一站式返回。
+    
+    这是Agent最应该调用的入口工具——一次调用获得全部洞察。
+    """
+    # Layer 1: All calculations
+    cal = odds_calibration_lookup(odds_home)
+    lf = get_league_factor(league) if league else {"factors": {"avg_goals": 2.5}}
+    imp = odds_implied_probabilities(odds_home, odds_draw, odds_away)
+    kelly_r = kelly_analyze(0.55, odds_home)  # default prob, Agent should override
+    
+    # Layer 2: Score matrix  
+    lam = lf.get('factors', {}).get('avg_goals', 2.5) / 2
+    score_r = score_probability_matrix(lam * 1.2 * 1.25, lam * 0.9 / 1.25)
+    
+    # Layer 3: Market story
+    market = {
+        "implied_home": imp['implied_home'],
+        "market_margin": imp['market_margin'],
+        "calibration": f"实测胜率{cal['actual_win_rate']*100:.0f}%，偏差{cal['actual_win_rate']-imp['implied_home']:+.1%}",
+    }
+    
+    # Layer 4: League context
+    league_hints = {
+        '英超': '快节奏，主场优势显著，下半场进球多',
+        '德甲': '大球联赛(3.22球)，屠杀型比赛多',
+        '意甲': '防守优先(2.41球)，平局常见，1-0是经典比分',
+        '西甲': '技术流，主胜率最高(48.8%)',
+        '法甲': '竞争相对均衡，巴黎统治力强',
+        '法乙': '⚠️ 平局率31%！法乙是平局之王',
+        '意乙': '⚠️ 平局率31%！意乙也是平局联赛',
+        '挪超': '大球联赛(3.17球)，上盘概率高',
+        '荷甲': '大球联赛(3.08球)，防守松散',
+        '韩职': '身体对抗强，主场优势明显',
+        '日职': '技术流，小球偏多(2.35球)，客场能力弱',
+        '澳超': '大球联赛(3.05球)，防守差',
+    }
+    
+    # Layer 5: AI insight synthesis
+    insights = []
+    
+    # Odds insight
+    if odds_home < 1.50:
+        insights.append(f"赔率视角：{home_team}是明显热门(SP{odds_home})，实测胜率{cal['actual_win_rate']*100:.0f}%，适合做串关定胆但单买回报有限")
+    elif odds_home > 3.0:
+        insights.append(f"赔率视角：{home_team}被市场低估(SP{odds_home})，>2.80区间实测胜率仅23%，需基本面配合才有搏冷价值")
+    else:
+        insights.append(f"赔率视角：双方实力接近(SP{odds_home}/{odds_draw}/{odds_away})，市场利润率{imp['market_margin']*100:.1f}%")
+    
+    # Market edge
+    edge = cal['actual_win_rate'] - imp['implied_home']
+    if edge > 0.05:
+        insights.append(f"价值发现：赔率低估了{home_team}，实测胜率{cal['actual_win_rate']*100:.0f}% > 市场隐含{imp['implied_home']*100:.0f}%，存在+{edge*100:.0f}%的偏差")
+    elif edge < -0.05:
+        insights.append(f"价值警示：赔率高估了{home_team}，实测胜率{cal['actual_win_rate']*100:.0f}% < 市场隐含{imp['implied_home']*100:.0f}%，当心诱盘")
+    
+    # League insight
+    hint = league_hints.get(league, '')
+    if hint:
+        insights.append(f"联赛特征：{hint}")
+    
+    # Score insight
+    top_scores = score_r.get('top_scores', [])[:3] if 'top_scores' in score_r else []
+    score_text = ', '.join([f"{s[0]}({float(s[1])*100:.0f}%)" for s in top_scores]) if top_scores else "待计算"
+    insights.append(f"比分预测：λ总≈{score_r.get('goals_dist',{}).get('lam_total',lam*2):.1f}球，最常见{score_text}")
+    
+    # Final: what would the evolution engine say?
+    evo_weights = HYPERPARAMS.get('weights', {})
+    insights.append(f"进化引擎：反买权重{evo_weights.get('contrarian_quant',0.468)}>聪明钱{evo_weights.get('smart_money_quant',0.342)}>基本面{evo_weights.get('fundamental_quant',0.19)}，提醒不要盲信低赔")
+    
+    return {
+        "match": f"{home_team} vs {away_team}",
+        "calculations": {
+            "elo_diff": round(home_elo - away_elo, 1),
+            "implied": {"h": imp['implied_home'], "d": imp['implied_draw'], "a": imp['implied_away']},
+            "kelly": kelly_r,
+            "score_probs": score_r.get('WDL', {}),
+            "sxds": score_r.get('beidan_sxds', {}),
+        },
+        "insights": insights,
+        "ai_prompt": f"先读insights。再用你的推理判断12种玩法中哪些真正有价值。不要套公式，不要让数字替你做决定。思考：这场比赛的独特之处是什么？"
+    }
+
 # ===== 6. 联赛因子 =====
 LEAGUE_FACTORS = {
     '英超': {'avg_goals':2.76,'home_win':0.427,'draw':0.264,'over25':0.553},
