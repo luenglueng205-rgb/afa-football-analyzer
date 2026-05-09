@@ -235,11 +235,7 @@ def scrape_500_jczq(date: str = "") -> dict:
 
 def main():
     """Entry point for `afa-mcp-server` CLI command."""
-    import sys
-    port = int(os.environ.get("AFA_MCP_PORT", "18900"))
-    print(f"⚽ AFA MCP Server starting on port {port}...")
-    print(f"   Tools: 15 | ELO DB: {len(ELO_DB)} teams | Leagues: {len(LEAGUE_FACTORS)}")
-    mcp.run()
+    mcp.run(transport="stdio")
 
 if __name__ == "__main__":
     main()
