@@ -1,0 +1,147 @@
+{
+  "system_version": "1.0",
+  "weights": {
+    "fundamental_quant": 0.3,
+    "contrarian_quant": 0.4,
+    "smart_money_quant": 0.3
+  },
+  "last_evolution_date": "2026-04-26 16:01:21",
+  "evolution_memory": {
+    "total_simulations_run": 129,
+    "win_rate": 0.3333,
+    "roi": -43.3333,
+    "latest_reflection": "主公，臣复盘发现，亏损源于基本面介入被强队低赔诱盘，以及反买派未能及时捕捉冷门。需降低基本面权重，提升反买与聪明钱比例。"
+  },
+  "evolution_audit": {
+    "history": [
+      {
+        "ts": "2026-04-16 12:34:29",
+        "seed": 7,
+        "source_report_path": "workspace/data/backtest_reports/backtest_report_20260416_043429.json",
+        "baseline": {
+          "total_simulated": 10,
+          "win_rate": 0.4,
+          "roi": -0.362,
+          "total_profit": -361.8,
+          "favorite_upset_rate": 0.0
+        },
+        "reflection": "复盘发现整体 ROI 明显为负，说明逆向信号噪声偏大，优先提升聪明钱权重并收紧入场门槛。",
+        "changes": [
+          {
+            "path": "weights.contrarian_quant",
+            "old": 0.45,
+            "new": 0.432
+          },
+          {
+            "path": "weights.smart_money_quant",
+            "old": 0.3,
+            "new": 0.318
+          },
+          {
+            "path": "risk_management.min_ev_threshold",
+            "old": 1.05,
+            "new": 1.06
+          }
+        ],
+        "after": {
+          "total_simulated": 10,
+          "win_rate": 0.4,
+          "roi": -0.362,
+          "total_profit": -361.8,
+          "favorite_upset_rate": 0.0
+        }
+      },
+      {
+        "ts": "2026-04-26 15:56:19",
+        "seed": null,
+        "source_report_path": null,
+        "baseline": {
+          "total_simulated": 3,
+          "win_rate": 0.3333,
+          "roi": -43.3333,
+          "total_profit": -130.0,
+          "favorite_upset_rate": 1.0
+        },
+        "reflection": "复盘发现热门主胜频繁爆冷，系统对诱盘过于信任，需要降低基本面权重，提升反买与聪明钱以更敏感地识别冷门风险。",
+        "changes": [
+          {
+            "path": "weights.fundamental_quant",
+            "old": 0.25,
+            "new": 0.22
+          },
+          {
+            "path": "weights.contrarian_quant",
+            "old": 0.432,
+            "new": 0.45
+          },
+          {
+            "path": "weights.smart_money_quant",
+            "old": 0.318,
+            "new": 0.33
+          },
+          {
+            "path": "risk_management.min_ev_threshold",
+            "old": 1.06,
+            "new": 1.07
+          }
+        ],
+        "after": null
+      },
+      {
+        "ts": "2026-04-26 15:59:55",
+        "seed": null,
+        "source_report_path": null,
+        "baseline": {
+          "total_simulated": 3,
+          "win_rate": 0.3333,
+          "roi": -43.3333,
+          "total_profit": -130.0,
+          "favorite_upset_rate": 1.0
+        },
+        "reflection": "复盘发现热门主胜频繁爆冷，系统对诱盘过于信任，需要降低基本面权重，提升反买与聪明钱以更敏感地识别冷门风险。",
+        "changes": [
+          {
+            "path": "weights.fundamental_quant",
+            "old": 0.22,
+            "new": 0.19
+          },
+          {
+            "path": "weights.contrarian_quant",
+            "old": 0.45,
+            "new": 0.468
+          },
+          {
+            "path": "weights.smart_money_quant",
+            "old": 0.33,
+            "new": 0.342
+          },
+          {
+            "path": "risk_management.min_ev_threshold",
+            "old": 1.07,
+            "new": 1.08
+          }
+        ],
+        "after": null
+      },
+      {
+        "ts": "2026-04-26 16:01:21",
+        "seed": null,
+        "source_report_path": null,
+        "baseline": {
+          "total_simulated": 3,
+          "win_rate": 0.3333,
+          "roi": -43.3333,
+          "total_profit": -130.0,
+          "favorite_upset_rate": 1.0
+        },
+        "reflection": "主公，臣复盘发现，亏损源于基本面介入被强队低赔诱盘，以及反买派未能及时捕捉冷门。需降低基本面权重，提升反买与聪明钱比例。",
+        "changes": [],
+        "after": null
+      }
+    ]
+  },
+  "zsa_thresholds": {
+    "negative_impact_threshold": -0.85,
+    "positive_impact_threshold": 0.55
+  }
+}

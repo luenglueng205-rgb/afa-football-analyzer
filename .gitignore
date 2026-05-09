@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.eggs/
+build/
+dist/
+*.egg-info/
+.env
+.DS_Store
+*.zip

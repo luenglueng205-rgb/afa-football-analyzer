@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "afa-mcp-server"
+version = "1.0.0"
+description = "AFA Football Analyzer MCP Server — 竞彩足球+北京单场12玩法量化分析引擎"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "AFA Team"}
+]
+keywords = ["football", "soccer", "betting", "mcp", "lobehub", "竞彩", "北单", "lottery"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Framework :: MCP",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "mcp>=1.0.0",
+    "numpy>=1.24.0",
+    "requests>=2.28.0",
+]
+
+[project.optional-dependencies]
+full = [
+    "scipy>=1.10.0",
+    "pandas>=2.0.0",
+    "matplotlib>=3.7.0",
+]
+
+[project.scripts]
+afa-mcp-server = "afa_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/user/afa-football-analyzer"
+Repository = "https://github.com/user/afa-football-analyzer"
+
+[tool.setuptools.packages.find]
+where = ["src"]
