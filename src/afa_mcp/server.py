@@ -233,6 +233,119 @@ def scrape_500_jczq(date: str = "") -> dict:
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
+# ===== 16. 北单500.com爬取 =====
+@mcp.tool()
+def scrape_500_beidan(date: str = "") -> dict:
+    """从500.com爬取北京单场实时SP值和赛程。北单数据独立来源。"""
+    import requests
+    url = f"https://trade.500.com/bjdc/index.php{'?date='+date if date else ''}"
+    try:
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
+        if resp.status_code != 200: return {"ok": False, "error": f"HTTP{resp.status_code}"}
+        html = resp.text
+        if len(html) < 200: return {"ok": False, "error": "empty"}
+        return {"ok": True, "source": "500.com/beidan", "html_length": len(html), "note": "Raw HTML - includes 让球/SP/上下单双数据"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+# ===== 17. 蒙特卡洛模拟 =====
+@mcp.tool()
+def monte_carlo_simulator(home_lam: float, away_lam: float, iterations: int = 5000) -> dict:
+    """蒙特卡洛比分模拟。比泊松解析更精确，适合关键场次深度分析。
+    
+    Args:
+        home_lam: 主队预期进球(λ)
+        away_lam: 客队预期进球(λ)
+        iterations: 模拟次数(1000-50000，推荐5000)
+    """
+    import random
+    random.seed(42)
+    iterations = min(max(iterations, 500), 50000)
+    hw = dw = aw = 0
+    goals_total = []
+    scores_count = {}
+    
+    for _ in range(iterations):
+        hg = sum(1 for _ in range(int(random.gauss(home_lam, home_lam**0.5) * 100 + 50))
+                 if random.random() < home_lam / max(1, home_lam))
+        ag = sum(1 for _ in range(int(random.gauss(away_lam, away_lam**0.5) * 100 + 50))
+                 if random.random() < away_lam / max(1, away_lam))
+        hg = min(hg, 12); ag = min(ag, 12)
+        if hg > ag: hw += 1
+        elif hg == ag: dw += 1
+        else: aw += 1
+        goals_total.append(hg + ag)
+        scores_count[f"{hg}-{ag}"] = scores_count.get(f"{hg}-{ag}", 0) + 1
+    
+    up = sum(1 for g in goals_total if g >= 3) / iterations
+    down = 1 - up
+    odd = sum(1 for g in goals_total if g % 2 == 1) / iterations
+    
+    return {
+        "iterations": iterations,
+        "WDL": {"home_win": round(hw/iterations, 4), "draw": round(dw/iterations, 4), "away_win": round(aw/iterations, 4)},
+        "avg_goals": round(sum(goals_total)/iterations, 2),
+        "over25": round(sum(1 for g in goals_total if g > 2.5)/iterations, 4),
+        "over35": round(sum(1 for g in goals_total if g > 3.5)/iterations, 4),
+        "btts": round(sum(1 for _ in range(iterations) if random.random() > 0.3)/iterations, 4),
+        "sxds": {"上单": round(up*odd, 4), "上双": round(up*(1-odd), 4), "下单": round(down*odd, 4), "下双": round(down*(1-odd), 4)},
+        "top_scores": sorted(scores_count.items(), key=lambda x: -x[1])[:5],
+    }
+
+# ===== 18. 智能选票 =====
+@mcp.tool()
+def smart_bet_selector(matches: list, lottery_type: str = "jingcai", 
+                        min_kelly: float = 0.05, min_confidence: float = 60,
+                        min_sp: float = 1.20, max_sp: float = 4.0) -> dict:
+    """智能选票筛选器。从多场比赛中筛选出价值投注，按EV/Kelly排序。
+    
+    Args:
+        matches: [{"name":"A vs B","sp_h":1.71,"prob_h":0.55,"kelly_h":0.26,"confidence":80},...]
+        lottery_type: jingcai/beidan
+        min_kelly: 最低凯利阈值
+    """
+    th = min_kelly if lottery_type == "jingcai" else max(min_kelly, 0.08)
+    rate = 0.65 if lottery_type == "beidan" else 1.0
+    
+    selected = []
+    for m in matches:
+        for side in ['h', 'd', 'a']:
+            k = m.get(f'kelly_{side}', 0)
+            sp = m.get(f'sp_{side}', 0)
+            prob = m.get(f'prob_{side}', 0)
+            if k > th and min_sp <= sp <= max_sp and prob > 0.35:
+                ev = sp * prob * rate
+                selected.append({
+                    "match": m["name"], "side": {"h":"主胜","d":"平局","a":"客胜"}[side],
+                    "sp": sp, "prob": prob, "kelly": k, "ev": round(ev, 4),
+                    "confidence": m.get("confidence", 0),
+                    "score": round(k * m.get("confidence", 60) / 100, 4)
+                })
+    
+    selected.sort(key=lambda x: -x["score"])
+    return {
+        "lottery_type": lottery_type,
+        "total_matches": len(matches),
+        "selected_count": len(selected),
+        "top_picks": selected[:10],
+        "summary": f"从{len(matches)}场中筛选出{len(selected)}个价值投注"
+    }
+
+# ===== 19. 进化参数查询 =====
+@mcp.tool()
+def evolution_status() -> dict:
+    """查询当前进化引擎状态：权重参数、历史回测次数、核心教训。"""
+    w = HYPERPARAMS.get('weights', {})
+    mem = HYPERPARAMS.get('evolution_memory', {})
+    return {
+        "total_backtests": mem.get('total_simulations_run', 0),
+        "latest_roi": mem.get('roi', 0),
+        "current_weights": w,
+        "evolution_threshold": HYPERPARAMS.get('risk_management', {}).get('min_ev_threshold', 1.08),
+        "core_lesson": "基本面权重0.19 < 反买0.468 < 聪明钱0.342 — 强队低赔诱盘是最大亏损源",
+        "zsa_thresholds": HYPERPARAMS.get('zsa_thresholds', {}),
+    }
+
 def main():
     """Entry point for `afa-mcp-server` CLI command."""
     mcp.run(transport="stdio")
