@@ -400,18 +400,30 @@ def scrape_500_jczq(date: str = "") -> dict:
     for url in urls:
         try:
             resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}, timeout=10)
-            if resp.status_code == 200 and len(resp.text) > 500:
-                html = resp.text
+            if resp.status_code == 200 and len(resp.content) > 500:
+                html = resp.content  # Keep as bytes for GB2312 decoding
                 break
             last_error = f"HTTP{resp.status_code}" if resp.status_code != 200 else "empty"
         except Exception as e:
             last_error = str(e)
     if not html:
         return {"ok": False, "error": f"all URLs failed: {last_error}", "urls_tried": urls}
-    # Try _parse_500_html first, fallback to jczq-specific parser
-    matches = _parse_500_html(html, lottery_type="jingcai")
+    # Decode GB2312 if needed
+    try:
+        if isinstance(html, bytes):
+            html = html.decode('gb2312', errors='replace')
+    except Exception:
+        pass
+    # Remove HTML tags for regex parsing
+    text = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL)
+    text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL)
+    text = re.sub(r'<[^>]+>', ' ', text)
+    text = re.sub(r'&nbsp;', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
+    # Try _parse_jczq_html with cleaned text
+    matches = _parse_jczq_html(text)
     if not matches:
-        matches = _parse_jczq_html(html)
+        matches = _parse_500_html(html, lottery_type="jingcai")
     return {"ok": True, "source": "500.com/jczq", "match_count": len(matches), "matches": matches[:50],
             "note": "Structured JSON — parsed from live 500.com page"}
 
@@ -841,64 +853,77 @@ def _tell_market_story(oh, od, oa):
 
 
 def _parse_jczq_html(html: str) -> list:
-    """解析竞彩足球500.com HTML（独立于北单解析器）。"""
+    """解析竞彩足球500.com HTML — 基于实际页面结构（GB2312编码后转UTF-8的文本内容）。
+    
+    500.com 竞彩页面结构复杂(GB2312+JS渲染)，此解析器基于页面文本内容提取。
+    """
     import re
     matches = []
-    # Match table rows with match data
-    rows = re.findall(r'<tr\s+[^>]*?(?:class="[^"]*"[^>]*)?>(.*?)</tr>', html, re.DOTALL)
-    for row in rows:
-        # Extract all text cells
-        cells = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL)
-        clean = [re.sub(r'<[^>]+>', '', c).strip() for c in cells]
-        clean = [c for c in clean if c and c != '&nbsp;']
-        if len(clean) < 6: continue
-        # Detect match row: starts with a number
-        try:
-            num = int(re.sub(r'\[.*?\]', '', clean[0]).strip())
-        except ValueError:
-            continue
-        if num < 1: continue
-        match = {"num": num, "league": "", "time": "", "home": "", "away": "", 
-                 "handicap": "0", "sp_h": "0", "sp_d": "0", "sp_a": "0", 
-                 "score": None, "status": "upcoming", "lottery_type": "jingcai"}
-        idx = 1
-        # Try to identify league/time
-        for i in range(1, min(len(clean), 4)):
-            if re.match(r'\d{2}:\d{2}', clean[i]):
-                match["time"] = clean[i]
-                if i > 1: match["league"] = clean[i-1]
-                idx = i + 1
-                break
-        # Find SP values (decimal numbers like 1.75)
-        sp_vals = []
-        for i in range(idx, len(clean)):
-            try:
-                v = float(clean[i])
-                if 1.01 <= v <= 999:
-                    sp_vals.append((i, v))
-            except ValueError:
-                continue
-        if len(sp_vals) >= 3:
-            sp_start = sp_vals[-3][0]
-            match["sp_h"] = str(sp_vals[-3][1])
-            match["sp_d"] = str(sp_vals[-2][1])
-            match["sp_a"] = str(sp_vals[-1][1])
-            # Home/Away teams are before the SP values
-            if sp_start - 2 >= idx:
-                match["away"] = clean[sp_start - 2]
-            if sp_start - 3 >= idx:
-                match["home"] = clean[sp_start - 3]
-            # Check for handicap between home and away
-            if sp_start - 2 > idx and re.match(r'^[+-]?\d+$', clean[sp_start - 2]):
-                match["handicap"] = clean[sp_start - 2]
-        # Check score
-        for c in clean:
-            if re.match(r'^\d+:\d+$', c):
-                match["score"] = c
-                match["status"] = "finished"
-                break
-        if match["sp_h"] != "0":
-            matches.append(match)
+    
+    # Pattern: match number + league + time + teams + handicap + SPs
+    # 周一001 沙特职业联赛 05-12 00:50 [8] 新未来SC VS 利雅得青年 [13] 0 -1 1.95 3.62 2.94
+    pattern = re.compile(
+        r'\[?(?:周[一二三四五六日]|星期[一二三四五六日])\s*(\d{3})\]?\s*'  # match number
+        r'\[?([^\]]+?)\]?\s*'  # league
+        r'(\d{2}-\d{2}\s+\d{2}:\d{2})\s*'  # time
+        r'(?:\[\d+\]\s*)?'  # optional home rank
+        r'\[?([^\]\[]+?)\]?\s*'  # home team
+        r'_?VS_?\s*'  # VS separator
+        r'(?:\[\d+\]\s*)?'  # optional away rank
+        r'\[?([^\]\[]+?)\]?\s*'  # away team
+        r'(?:\[\d+\]\s*)?',  # optional away rank
+        re.DOTALL
+    )
+    
+    for m in pattern.finditer(html):
+        num = m.group(1)
+        league = m.group(2).strip()
+        time_str = m.group(3).strip()
+        home = m.group(4).strip()
+        away = m.group(5).strip()
+        
+        # Look for handicap and SP values after the team match
+        rest_start = m.end()
+        rest = html[rest_start:rest_start + 200]
+        
+        handicap = "0"
+        # Find handicap: optional digit, then [+-]digit
+        hc_match = re.search(r'(\d+)?\s*([+-]\d+)', rest)
+        if hc_match:
+            handicap = hc_match.group(2)
+        
+        # Find 3 decimal numbers (SP values)
+        sp_matches = re.findall(r'(?:^|\s)(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+\.\d{2})', rest)
+        sp_h = sp_d = sp_a = "0"
+        if sp_matches:
+            sp_h, sp_d, sp_a = sp_matches[0]
+        else:
+            # Try single SP values
+            sp_vals = re.findall(r'(\d+\.\d{2})', rest)
+            if len(sp_vals) >= 3:
+                sp_h, sp_d, sp_a = sp_vals[0], sp_vals[1], sp_vals[2]
+        
+        # Check status
+        status = "upcoming"
+        score = None
+        score_match = re.search(r'(\d+:\d+)', rest)
+        if score_match:
+            score = score_match.group(1)
+            status = "finished"
+        
+        # Clean up league name (remove trailing "联赛" if it's a proper name)
+        league_clean = league
+        
+        matches.append({
+            "num": int(num) if num.isdigit() else num, 
+            "league": league_clean, 
+            "time": time_str,
+            "home": home, "handicap": handicap, "away": away,
+            "sp_h": sp_h, "sp_d": sp_d, "sp_a": sp_a,
+            "score": score, "status": status,
+            "lottery_type": "jingcai",
+        })
+    
     return matches
 
 
