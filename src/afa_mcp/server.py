@@ -122,10 +122,17 @@ def think_match(home_team: str, away_team: str,
     elo_prob = 1.0 / (1.0 + 10.0 ** ((away_elo - home_elo - 65.0) / 400.0))
     kelly_r = kelly_analyze(elo_prob, odds_home, lottery_type="jingcai")
     
-    # Layer 2: Score matrix  
+    # Layer 2: Score matrix — league-adaptive λ split
     factors = lf.get('factors') or {}
-    lam = factors.get('avg_goals', 2.5) / 2
-    score_r = score_probability_matrix(lam * 1.2 * 1.25, lam * 0.9 / 1.25)
+    lam_total = factors.get('avg_goals', 2.5)
+    home_win_rate = factors.get('home_win', 0.42)
+    # Home advantage ratio derived from league's actual home win rate (15.9万场实测)
+    # 西甲48.8%→home_ratio=0.544, 英冠41.7%→home_ratio=0.509
+    home_ratio = 0.5 + (home_win_rate - 0.40) * 0.5
+    home_ratio = max(0.45, min(0.55, home_ratio))  # clamp
+    home_lam = lam_total * home_ratio
+    away_lam = lam_total * (1 - home_ratio)
+    score_r = score_probability_matrix(home_lam, away_lam)
     
     # Layer 3: Market story
     market = {
@@ -176,7 +183,7 @@ def think_match(home_team: str, away_team: str,
     # Score insight
     top_scores = score_r.get('top_scores', [])[:3] if 'top_scores' in score_r else []
     score_text = ', '.join([f"{s[0]}({float(s[1])*100:.0f}%)" for s in top_scores]) if top_scores else "待计算"
-    insights.append(f"比分预测：λ总≈{score_r.get('goals_dist',{}).get('lam_total',lam*2):.1f}球，最常见{score_text}")
+    insights.append(f"比分预测：λ总≈{lam_total:.1f}球(主{home_lam:.1f}/客{away_lam:.1f})，最常见{score_text}")
     
     # Final: what would the evolution engine say?
     evo_weights = HYPERPARAMS.get('weights', {})
@@ -536,6 +543,77 @@ def smart_bet_selector(matches: list, lottery_type: str = "jingcai",
         "summary": f"从{len(matches)}场中筛选出{len(selected)}个价值投注"
     }
 
+# ===== 26. 批量场次分析 =====
+@mcp.tool()
+def batch_analyze(matches: list, league: str = "", lottery_type: str = "jingcai") -> dict:
+    """批量分析多场比赛 — 一次调用完成所有ELO+Kelly+比分计算。
+    
+    Args:
+        matches: [{"home":"巴萨","away":"皇马","sp_h":1.66,"sp_d":4.62,"sp_a":4.22},...]
+        league: 联赛名(用于λ自适应)
+        lottery_type: jingcai/beidan
+    
+    返回: 按Kelly值排序的比赛分析列表
+    """
+    results = []
+    for i, m in enumerate(matches):
+        try:
+            home = m.get('home', m.get('home_team', '?'))
+            away = m.get('away', m.get('away_team', '?'))
+            sp_h = float(m.get('sp_h', 2.0))
+            sp_d = float(m.get('sp_d', 3.5))
+            sp_a = float(m.get('sp_a', 3.5))
+            
+            # Get ELO
+            home_elo_data = get_team_elo(home)
+            away_elo_data = get_team_elo(away)
+            home_elo = home_elo_data['results'][0]['elo'] if home_elo_data['results'] else 1500
+            away_elo = away_elo_data['results'][0]['elo'] if away_elo_data['results'] else 1500
+            
+            # ELO probability
+            elo_prob = 1.0 / (1.0 + 10.0 ** ((away_elo - home_elo - 65.0) / 400.0))
+            
+            # Kelly
+            kelly_r = kelly_analyze(elo_prob, sp_h, lottery_type=lottery_type)
+            
+            # Market implied
+            imp = odds_implied_probabilities(sp_h, sp_d, sp_a)
+            
+            # Score matrix
+            lf = get_league_factor(league) if league else {"factors": {"avg_goals": 2.5, "home_win": 0.42}}
+            factors = lf.get('factors', {})
+            lam_total = factors.get('avg_goals', 2.5)
+            hwr = factors.get('home_win', 0.42)
+            home_ratio = 0.5 + (hwr - 0.40) * 0.5
+            home_lam = lam_total * max(0.45, min(0.55, home_ratio))
+            away_lam = lam_total - home_lam
+            score_r = score_probability_matrix(home_lam, away_lam)
+            
+            results.append({
+                "match": f"{home} vs {away}",
+                "sp": {"h": sp_h, "d": sp_d, "a": sp_a},
+                "elo": {"home": home_elo, "away": away_elo, "diff": round(home_elo - away_elo, 1)},
+                "elo_prob": round(elo_prob, 4),
+                "implied_prob": imp['implied_home'],
+                "kelly": kelly_r,
+                "score_WDL": score_r.get('WDL', {}),
+                "sxds": score_r.get('beidan_sxds', {}),
+            })
+        except Exception as e:
+            results.append({"match": m.get('home','?')+" vs "+m.get('away','?'), "error": str(e)})
+    
+    # Sort by Kelly fraction descending
+    results.sort(key=lambda x: x.get('kelly', {}).get('kelly_fraction', 0), reverse=True)
+    
+    return {
+        "league": league or "auto",
+        "lottery_type": lottery_type,
+        "total": len(results),
+        "analyzed": [r for r in results if 'error' not in r],
+        "errors": [r for r in results if 'error' in r],
+        "ranked": results,
+    }
+
 # ===== 19. 进化参数查询 =====
 @mcp.tool()
 def evolution_status() -> dict:
@@ -800,6 +878,95 @@ def official_knowledge(lottery_type: str = "all") -> dict:
         return {"rules": LOTTERY_RULES, "total_plays": 12,
                 "note": "竞彩6种+北单6种=12种玩法。竞彩固定赔率71%返奖，北单浮动SP值65%返奖。"}
     return {"rules": {lottery_type: LOTTERY_RULES.get(lottery_type, {})}}
+
+# ===== 25. 让球盘分析器 =====
+@mcp.tool()
+def handicap_analyzer(home_win_prob: float, draw_prob: float, away_win_prob: float,
+                      handicap: int, home_goals_expected: float = None, away_goals_expected: float = None,
+                      league_name: str = "") -> dict:
+    """让球胜平负概率计算 — 竞彩和北单核心玩法。
+    
+    输入原始WDL概率+让球值，计算让球后的胜平负分布。
+    
+    Args:
+        handicap: 让球值(如-1表示主队让1球,+1表示主队受让1球)
+        home_goals_expected: 主队预期进球(可选,默认从概率反推λ≈2.5球)
+        away_goals_expected: 客队预期进球(可选)
+        league_name: 联赛名(用于获取联赛因子计算λ)
+    
+    返回: 让球后的WDL概率+10种最可能比分+投注建议
+    """
+    import math
+    
+    # Get league λ if available
+    lf = LEAGUE_FACTORS.get(league_name, {})
+    avg_goals = lf.get('avg_goals', 2.5)
+    
+    # Estimate λ from probabilities if not provided
+    if home_goals_expected is None:
+        # Reverse-engineer: use avg_goals adjusted by home_win rate
+        hwr = lf.get('home_win', max(home_win_prob, 0.38))
+        home_ratio = 0.5 + (hwr - 0.40) * 0.5
+        home_goals_expected = avg_goals * home_ratio
+    if away_goals_expected is None:
+        away_goals_expected = avg_goals - home_goals_expected
+    
+    # Generate full score probability matrix
+    max_g = 8
+    raw_scores = {}
+    hw = dw = aw = 0.0
+    for h in range(max_g + 1):
+        for a in range(max_g + 1):
+            p = (home_goals_expected**h * math.exp(-home_goals_expected) / math.factorial(h)) * \
+                (away_goals_expected**a * math.exp(-away_goals_expected) / math.factorial(a))
+            raw_scores[(h, a)] = p
+            if h > a: hw += p
+            elif h == a: dw += p
+            else: aw += p
+    
+    # Apply handicap: shift home goals by handicap value
+    # handicap=-1 means home starts at -1, so home_effective = h + handicap
+    adj_hw = adj_dw = adj_aw = 0.0
+    adj_scores = {}
+    handicap_dir = "让球" if handicap < 0 else ("受让" if handicap > 0 else "平手")
+    
+    for (h, a), p in raw_scores.items():
+        adj_h = h + handicap
+        if adj_h > a: adj_hw += p
+        elif adj_h == a: adj_dw += p
+        else: adj_aw += p
+        adj_scores[f"{adj_h}-{a}"] = p
+    
+    # Top scores after handicap
+    top_adj = sorted(adj_scores.items(), key=lambda x: -x[1])[:10]
+    
+    # Betting recommendation
+    total = adj_hw + adj_dw + adj_aw
+    if total == 0: total = 1.0
+    adj_hw_n = adj_hw / total
+    adj_dw_n = adj_dw / total
+    adj_aw_n = adj_aw / total
+    
+    advice = []
+    if abs(handicap) >= 2:
+        advice.append(f"深盘({handicap})让球方穿盘难度大,关注受让方")
+    if adj_dw_n > 0.30:
+        advice.append(f"让球后平局概率{adj_dw_n*100:.0f}%,警惕走水(平局=让球方输半)")
+    if adj_hw_n > adj_aw_n + 0.20:
+        advice.append(f"让球方优势明显,可做串关定胆")
+    
+    return {
+        "handicap": handicap,
+        "handicap_direction": handicap_dir,
+        "original": {"home_win": round(hw, 4), "draw": round(dw, 4), "away_win": round(aw, 4)},
+        "after_handicap": {"home_win": round(adj_hw_n, 4), "draw": round(adj_dw_n, 4), "away_win": round(adj_aw_n, 4)},
+        "home_goals_expected": round(home_goals_expected, 2),
+        "away_goals_expected": round(away_goals_expected, 2),
+        "top_scores_after_handicap": [(s, round(p, 5)) for s, p in top_adj],
+        "advice": advice,
+        "note": f"让球{handicap}后:原主胜{hw*100:.1f}%→{adj_hw_n*100:.1f}%,原平{dw*100:.1f}%→{adj_dw_n*100:.1f}%,原客胜{aw*100:.1f}%→{adj_aw_n*100:.1f}%"
+    }
+
 # ===== 21. AI原生：市场信号研判 =====
 @mcp.tool()
 def market_signal_analyzer(odds_home: float, odds_draw: float, odds_away: float,
