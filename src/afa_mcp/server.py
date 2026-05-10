@@ -28,15 +28,19 @@ if not LEAGUE_FACTORS:
 
 mcp = FastMCP("afa-football-analyzer")
 
-# Load .env file if present (API keys for external data sources)
-_ENV_FILE = Path(os.environ.get("AFA_ENV_FILE", (Path(__file__).parent / "../configs/.env").resolve()))
-if _ENV_FILE.exists():
-    for line in open(_ENV_FILE).readlines():
-        line = line.strip()
-        if line and not line.startswith('#') and '=' in line:
-            k, v = line.split('=', 1)
-            if k.strip() not in os.environ:
-                os.environ[k.strip()] = v.strip()
+# Load .env file if present, else use os.environ directly
+_ENV_FILE = Path(os.environ.get("AFA_ENV_FILE", (Path(__file__).parent / "configs/.env").resolve()))
+_env_loaded = False
+for env_path in [_ENV_FILE, Path("/Users/jand/Projects/afa-mcp-server/configs/.env")]:
+    if env_path.exists():
+        for line in open(env_path).readlines():
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                k, v = line.split('=', 1)
+                if k.strip() not in os.environ:
+                    os.environ[k.strip()] = v.strip()
+        _env_loaded = True
+        break
 
 # ===== 1. ELO评分 =====
 @mcp.tool()
