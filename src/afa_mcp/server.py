@@ -853,84 +853,97 @@ def _tell_market_story(oh, od, oa):
 
 
 def _parse_jczq_html(html: str) -> list:
-    """解析竞彩足球500.com HTML — 基于实际页面结构（GB2312编码后转UTF-8的文本内容）。
+    """解析竞彩足球500.com HTML — 基于实际页面文本内容提取。
     
-    500.com 竞彩页面结构复杂(GB2312+JS渲染)，此解析器基于页面文本内容提取。
+    500.com 竞彩页面使用GB2312编码+复杂JS渲染。
+    此解析器先将HTML strip为纯文本，再用正则提取比赛数据。
     """
     import re
     matches = []
     
-    # Pattern: match number + league + time + teams + handicap + SPs
-    # 周一001 沙特职业联赛 05-12 00:50 [8] 新未来SC VS 利雅得青年 [13] 0 -1 1.95 3.62 2.94
-    pattern = re.compile(
-        r'\[?(?:周[一二三四五六日]|星期[一二三四五六日])\s*(\d{3})\]?\s*'  # match number
-        r'\[?([^\]]+?)\]?\s*'  # league
-        r'(\d{2}-\d{2}\s+\d{2}:\d{2})\s*'  # time
-        r'(?:\[\d+\])?\s*'  # optional home rank
-        r'([^\[V_]+?)\s*'  # home team (stop before [, V, _)
-        r'(?:_?VS_?|_vs_)\s*'  # VS separator
-        r'(?:\[\d+\])?\s*'  # optional away rank
-        r'([^\[\d]+?)\s*'  # away team (stop before [ or digit)
-        r'(?:\[\d+\]\s*)?',  # optional away rank bracket
-        re.DOTALL
-    )
+    # Find each match section by the match number prefix (周XNNN or 星期XNNN)
+    sections = re.split(r'(?=\[?(?:周[一二三四五六日]|星期[一二三四五六日])\s*\d{3}\]?)', html)
     
-    for m in pattern.finditer(html):
-        num = m.group(1)
-        league = m.group(2).strip()
-        time_str = m.group(3).strip()
-        home = m.group(4).strip()
-        away = m.group(5).strip()
+    for section in sections:
+        if not re.search(r'(?:周[一二三四五六日]|星期[一二三四五六日])\s*(\d{3})', section):
+            continue
         
-        # Look for handicap and SP values after the team match
-        rest_start = m.end()
-        rest = html[rest_start:rest_start + 200]
+        # Extract match number
+        num_m = re.search(r'(?:周[一二三四五六日]|星期[一二三四五六日])\s*(\d{3})', section)
+        if not num_m: continue
+        num = int(num_m.group(1))
         
+        # Clean section: remove HTML tags, excess whitespace
+        clean = re.sub(r'<[^>]+>', ' ', section)
+        clean = re.sub(r'&nbsp;', ' ', clean)
+        clean = re.sub(r'\s+', ' ', clean).strip()
+        
+        # Extract league name (first bracket after number)
+        league_m = re.search(r'\]?\s*\[?([^\]\[]+?)\]?\s*\d{2}-\d{2}', clean)
+        league = league_m.group(1).strip() if league_m else ""
+        
+        # Extract time
+        time_m = re.search(r'(\d{2}-\d{2}\s+\d{2}:\d{2})', clean)
+        time_str = time_m.group(1) if time_m else ""
+        
+        # Extract teams: split on VS
+        teams_part = clean
+        if time_str:
+            teams_part = clean[clean.index(time_str) + len(time_str):]
+        
+        vs_m = re.search(r'(?:_?VS_?|_vs_)', teams_part, re.IGNORECASE)
+        if not vs_m: continue
+        
+        before_vs = teams_part[:vs_m.start()].strip()
+        after_vs = teams_part[vs_m.end():].strip()
+        
+        # Clean home team: remove leading rank brackets and separators
+        home = re.sub(r'^\[?\d+\]?\s*', '', before_vs)
+        home = re.sub(r'[\[\]]', '', home).strip()
+        
+        # Clean away team: stop at rank bracket or SP value
+        away = re.split(r'\s*\[\d+\]', after_vs)[0]
+        away = re.sub(r'[\[\]]', '', away).strip()
+        # Remove trailing "未开售" or SP-like numbers
+        away = re.sub(r'\s+(?:未开售|[\d.]+).*$', '', away).strip()
+        
+        # Clean league: strip the day prefix like "周一001 "
+        league = re.sub(r'^周[一二三四五六日]\d{3}\s+', '', league).strip()
+        
+        if not home or not away: continue
+        
+        # Extract handicap
         handicap = "0"
-        # Find handicap: optional digit, then [+-]digit
-        hc_match = re.search(r'(\d+)?\s*([+-]\d+)', rest)
-        if hc_match:
-            handicap = hc_match.group(2)
+        hc_m = re.search(r'([+-]\d)\s', after_vs)
+        if hc_m:
+            handicap = hc_m.group(1)
         
-        # Find 3 decimal numbers (SP values)
-        sp_matches = re.findall(r'(?:^|\s)(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+\.\d{2})', rest)
+        # Extract SP values
+        sp_vals = re.findall(r'(?<!\d)(\d+\.\d{2})(?!\d)', after_vs)
         sp_h = sp_d = sp_a = "0"
-        if sp_matches:
-            sp_h, sp_d, sp_a = sp_matches[0]
-        else:
-            # Try single SP values
-            sp_vals = re.findall(r'(\d+\.\d{2})', rest)
-            if len(sp_vals) >= 3:
-                sp_h, sp_d, sp_a = sp_vals[0], sp_vals[1], sp_vals[2]
+        if len(sp_vals) >= 3:
+            sp_h, sp_d, sp_a = sp_vals[0], sp_vals[1], sp_vals[2]
         
-        # Check status - look for score AFTER SP values (not time strings)
-        status = "upcoming"
+        # Score detection: look for X:Y where X,Y are 0-7 and NOT time-like (e.g. 00:50)
         score = None
-        # Find all colon-separated patterns in rest
-        colon_matches = re.findall(r'(\d+:\d+)', rest)
-        for cm in colon_matches:
-            # Skip time-like patterns (e.g., "00:50" with leading zeros)
-            parts = cm.split(':')
-            if int(parts[0]) > 30 or int(parts[1]) > 30:
-                continue  # Not a valid football score
-            if int(parts[0]) < 10 and int(parts[1]) < 10:
-                # Could be time or score - prefer ones after SP values
-                pos = rest.find(cm)
-                sp_pos = max([rest.rfind(s) for s in [sp_h, sp_d, sp_a] if s != "0"] + [0])
-                if pos > sp_pos or (score is None and int(parts[0]) <= 7):
-                    score = cm
+        status = "upcoming"
+        score_matches = re.findall(r'(?:^|\s)(\d+:\d+)(?:\s|$)', after_vs)
+        for sm in score_matches:
+            parts = sm.split(':')
+            try:
+                a, b = int(parts[0]), int(parts[1])
+                # Skip time-like patterns (e.g. "00:50", "01:00" as next match time)
+                if a > 7 and b > 7: continue  # Times like 22:50
+                if (a == 0 and b > 7) or (b == 0 and a > 7): continue  # Time-like
+                if a <= 7 and b <= 7:
+                    score = sm
                     status = "finished"
-            elif int(parts[0]) <= 7 and int(parts[1]) <= 7:
-                score = cm
-                status = "finished"
-        
-        # Clean up league name (remove trailing "联赛" if it's a proper name)
-        league_clean = league
+                    break
+            except ValueError:
+                continue
         
         matches.append({
-            "num": int(num) if num.isdigit() else num, 
-            "league": league_clean, 
-            "time": time_str,
+            "num": num, "league": league, "time": time_str,
             "home": home, "handicap": handicap, "away": away,
             "sp_h": sp_h, "sp_d": sp_d, "sp_a": sp_a,
             "score": score, "status": status,
