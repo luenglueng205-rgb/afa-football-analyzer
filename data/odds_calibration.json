@@ -1,0 +1,452 @@
+[
+  {
+    "odds_max": 1.075,
+    "actual_win_rate": 0.9367,
+    "sample_size": 79,
+    "advice": "强队稳胆"
+  },
+  {
+    "odds_max": 1.125,
+    "actual_win_rate": 0.8966,
+    "sample_size": 290,
+    "advice": "强队稳胆"
+  },
+  {
+    "odds_max": 1.1749999999999998,
+    "actual_win_rate": 0.8683,
+    "sample_size": 448,
+    "advice": "强队稳胆"
+  },
+  {
+    "odds_max": 1.2249999999999999,
+    "actual_win_rate": 0.8194,
+    "sample_size": 692,
+    "advice": "强队稳胆"
+  },
+  {
+    "odds_max": 1.275,
+    "actual_win_rate": 0.7642,
+    "sample_size": 386,
+    "advice": "强队稳胆"
+  },
+  {
+    "odds_max": 1.325,
+    "actual_win_rate": 0.7681,
+    "sample_size": 595,
+    "advice": "强队稳胆"
+  },
+  {
+    "odds_max": 1.375,
+    "actual_win_rate": 0.7412,
+    "sample_size": 997,
+    "advice": "正期望"
+  },
+  {
+    "odds_max": 1.4249999999999998,
+    "actual_win_rate": 0.7069,
+    "sample_size": 778,
+    "advice": "正期望"
+  },
+  {
+    "odds_max": 1.4749999999999999,
+    "actual_win_rate": 0.7012,
+    "sample_size": 830,
+    "advice": "正期望"
+  },
+  {
+    "odds_max": 1.525,
+    "actual_win_rate": 0.6598,
+    "sample_size": 820,
+    "advice": "正期望"
+  },
+  {
+    "odds_max": 1.575,
+    "actual_win_rate": 0.6312,
+    "sample_size": 1513,
+    "advice": "正期望"
+  },
+  {
+    "odds_max": 1.625,
+    "actual_win_rate": 0.5836,
+    "sample_size": 1184,
+    "advice": "正期望"
+  },
+  {
+    "odds_max": 1.6749999999999998,
+    "actual_win_rate": 0.5723,
+    "sample_size": 1211,
+    "advice": "正期望"
+  },
+  {
+    "odds_max": 1.7249999999999999,
+    "actual_win_rate": 0.5421,
+    "sample_size": 1175,
+    "advice": "正期望"
+  },
+  {
+    "odds_max": 1.775,
+    "actual_win_rate": 0.549,
+    "sample_size": 1297,
+    "advice": "正期望"
+  },
+  {
+    "odds_max": 1.825,
+    "actual_win_rate": 0.5512,
+    "sample_size": 1152,
+    "advice": "正期望"
+  },
+  {
+    "odds_max": 1.875,
+    "actual_win_rate": 0.4871,
+    "sample_size": 1591,
+    "advice": "谨慎"
+  },
+  {
+    "odds_max": 1.9249999999999998,
+    "actual_win_rate": 0.4755,
+    "sample_size": 1531,
+    "advice": "谨慎"
+  },
+  {
+    "odds_max": 1.9749999999999999,
+    "actual_win_rate": 0.4698,
+    "sample_size": 1243,
+    "advice": "谨慎"
+  },
+  {
+    "odds_max": 2.025,
+    "actual_win_rate": 0.4539,
+    "sample_size": 1441,
+    "advice": "谨慎"
+  },
+  {
+    "odds_max": 2.0749999999999997,
+    "actual_win_rate": 0.4615,
+    "sample_size": 1467,
+    "advice": "谨慎"
+  },
+  {
+    "odds_max": 2.125,
+    "actual_win_rate": 0.4508,
+    "sample_size": 1402,
+    "advice": "谨慎"
+  },
+  {
+    "odds_max": 2.175,
+    "actual_win_rate": 0.4116,
+    "sample_size": 1324,
+    "advice": "谨慎"
+  },
+  {
+    "odds_max": 2.225,
+    "actual_win_rate": 0.4462,
+    "sample_size": 1376,
+    "advice": "谨慎"
+  },
+  {
+    "odds_max": 2.275,
+    "actual_win_rate": 0.4398,
+    "sample_size": 1280,
+    "advice": "谨慎"
+  },
+  {
+    "odds_max": 2.3249999999999997,
+    "actual_win_rate": 0.4159,
+    "sample_size": 1332,
+    "advice": "谨慎"
+  },
+  {
+    "odds_max": 2.375,
+    "actual_win_rate": 0.3794,
+    "sample_size": 817,
+    "advice": "谨慎"
+  },
+  {
+    "odds_max": 2.425,
+    "actual_win_rate": 0.3823,
+    "sample_size": 1245,
+    "advice": "避单选"
+  },
+  {
+    "odds_max": 2.475,
+    "actual_win_rate": 0.3683,
+    "sample_size": 983,
+    "advice": "避单选"
+  },
+  {
+    "odds_max": 2.525,
+    "actual_win_rate": 0.3574,
+    "sample_size": 943,
+    "advice": "避单选"
+  },
+  {
+    "odds_max": 2.5749999999999997,
+    "actual_win_rate": 0.3842,
+    "sample_size": 872,
+    "advice": "避单选"
+  },
+  {
+    "odds_max": 2.625,
+    "actual_win_rate": 0.3362,
+    "sample_size": 931,
+    "advice": "避单选"
+  },
+  {
+    "odds_max": 2.675,
+    "actual_win_rate": 0.3085,
+    "sample_size": 457,
+    "advice": "避单选"
+  },
+  {
+    "odds_max": 2.725,
+    "actual_win_rate": 0.3271,
+    "sample_size": 859,
+    "advice": "避单选"
+  },
+  {
+    "odds_max": 2.775,
+    "actual_win_rate": 0.3509,
+    "sample_size": 704,
+    "advice": "避单选"
+  },
+  {
+    "odds_max": 2.8249999999999997,
+    "actual_win_rate": 0.3207,
+    "sample_size": 789,
+    "advice": "避单选"
+  },
+  {
+    "odds_max": 2.875,
+    "actual_win_rate": 0.325,
+    "sample_size": 360,
+    "advice": "避单选"
+  },
+  {
+    "odds_max": 2.925,
+    "actual_win_rate": 0.3135,
+    "sample_size": 976,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 3.025,
+    "actual_win_rate": 0.3088,
+    "sample_size": 1046,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 3.125,
+    "actual_win_rate": 0.2892,
+    "sample_size": 975,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 3.225,
+    "actual_win_rate": 0.2874,
+    "sample_size": 668,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 3.275,
+    "actual_win_rate": 0.2801,
+    "sample_size": 357,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 3.3249999999999997,
+    "actual_win_rate": 0.2825,
+    "sample_size": 538,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 3.425,
+    "actual_win_rate": 0.2265,
+    "sample_size": 649,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 3.525,
+    "actual_win_rate": 0.259,
+    "sample_size": 583,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 3.625,
+    "actual_win_rate": 0.2196,
+    "sample_size": 601,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 3.725,
+    "actual_win_rate": 0.1619,
+    "sample_size": 105,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 3.775,
+    "actual_win_rate": 0.207,
+    "sample_size": 372,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 3.8249999999999997,
+    "actual_win_rate": 0.2333,
+    "sample_size": 420,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 3.925,
+    "actual_win_rate": 0.2335,
+    "sample_size": 167,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 4.025,
+    "actual_win_rate": 0.2341,
+    "sample_size": 551,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 4.125,
+    "actual_win_rate": 0.215,
+    "sample_size": 107,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 4.2250000000000005,
+    "actual_win_rate": 0.2323,
+    "sample_size": 409,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 4.375,
+    "actual_win_rate": 0.2036,
+    "sample_size": 334,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 4.525,
+    "actual_win_rate": 0.1975,
+    "sample_size": 395,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 4.775,
+    "actual_win_rate": 0.2037,
+    "sample_size": 432,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 5.025,
+    "actual_win_rate": 0.1936,
+    "sample_size": 377,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 5.275,
+    "actual_win_rate": 0.1804,
+    "sample_size": 327,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 5.525,
+    "actual_win_rate": 0.153,
+    "sample_size": 281,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 5.775,
+    "actual_win_rate": 0.1262,
+    "sample_size": 206,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 6.025,
+    "actual_win_rate": 0.1308,
+    "sample_size": 260,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 6.275,
+    "actual_win_rate": 0.14,
+    "sample_size": 50,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 6.525,
+    "actual_win_rate": 0.1355,
+    "sample_size": 273,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 7.025,
+    "actual_win_rate": 0.1076,
+    "sample_size": 223,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 7.525,
+    "actual_win_rate": 0.0929,
+    "sample_size": 183,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 8.025,
+    "actual_win_rate": 0.092,
+    "sample_size": 174,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 8.525,
+    "actual_win_rate": 0.0775,
+    "sample_size": 142,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 9.025,
+    "actual_win_rate": 0.0866,
+    "sample_size": 127,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 9.525,
+    "actual_win_rate": 0.043,
+    "sample_size": 93,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 10.025,
+    "actual_win_rate": 0.0488,
+    "sample_size": 123,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 11.025,
+    "actual_win_rate": 0.1129,
+    "sample_size": 124,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 12.025,
+    "actual_win_rate": 0.0976,
+    "sample_size": 82,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 13.025,
+    "actual_win_rate": 0.0533,
+    "sample_size": 75,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 15.025,
+    "actual_win_rate": 0.0714,
+    "sample_size": 42,
+    "advice": "冷门区"
+  },
+  {
+    "odds_max": 999,
+    "actual_win_rate": 0.22,
+    "sample_size": 0,
+    "advice": "数据不足"
+  }
+]
