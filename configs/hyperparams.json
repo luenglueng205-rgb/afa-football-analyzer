@@ -1,9 +1,9 @@
 {
   "system_version": "1.0",
   "weights": {
-    "fundamental_quant": 0.3,
-    "contrarian_quant": 0.4,
-    "smart_money_quant": 0.3
+    "fundamental_quant": 0.19,
+    "contrarian_quant": 0.468,
+    "smart_money_quant": 0.342
   },
   "last_evolution_date": "2026-04-26 16:01:21",
   "evolution_memory": {

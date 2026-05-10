@@ -34,21 +34,40 @@ def elo_calculate(home_elo: float, away_elo: float,
 def dixon_coles_predict(home_attack: float, home_defense: float,
                         away_attack: float, away_defense: float,
                         home_advantage: float = 0.3) -> dict:
-    """Dixon-Coles双变量泊松比分预测。返回WDL概率+比分Top5+总进球分布。"""
-    lam_h = math.exp(home_attack + away_defense + home_advantage)
-    lam_a = math.exp(away_attack + home_defense)
+    """Dixon-Coles双变量泊松比分预测。返回WDL概率+比分Top5+总进球分布。
+    
+    参数说明:
+        home_attack: 主队攻击力 (范围 -2~+2, 0=联赛平均, 正=强)
+        home_defense: 主队防守力 (范围 -2~+2, 0=联赛平均, 正=强, 即失球少)
+        away_attack: 客队攻击力
+        away_defense: 客队防守力
+        home_advantage: 主场优势偏移 (默认0.3)
+    
+    计算公式: λ_h = exp(attack_home - defense_away + home_adv)
+              λ_a = exp(attack_away - defense_home)
+    
+    典型输入: 强队攻1.0防0.5 vs 弱队攻-0.5防-0.5 → λ≈3.5/0.8
+    """
+    # Scale down for numerical stability (defense is strength: higher = fewer conceded)
+    lam_h = math.exp(home_attack - away_defense + home_advantage)
+    lam_a = math.exp(away_attack - home_defense)
+    lam_h = min(lam_h, 8.0)  # Cap at 8 to prevent explosion
+    lam_a = min(lam_a, 8.0)
     hw = dw = aw = 0.0; scores = {}; goals = {}
-    for h in range(9):
-        for a in range(9):
+    max_goals = 12
+    for h in range(max_goals):
+        for a in range(max_goals):
             p = (lam_h**h * math.exp(-lam_h) / math.factorial(h)) * (lam_a**a * math.exp(-lam_a) / math.factorial(a))
             if h > a: hw += p
             elif h == a: dw += p
             else: aw += p
             scores[f"{h}-{a}"] = round(p, 5); goals[str(h+a)] = goals.get(str(h+a), 0) + p
+    total = hw + dw + aw
     return {"lam_home": round(lam_h,3), "lam_away": round(lam_a,3), "lam_total": round(lam_h+lam_a,3),
-            "home_win": round(hw,4), "draw": round(dw,4), "away_win": round(aw,4),
+            "home_win": round(hw/total,4) if total else 0, "draw": round(dw/total,4) if total else 0, 
+            "away_win": round(aw/total,4) if total else 0,
             "top_scores": sorted(scores.items(), key=lambda x: -x[1])[:5],
-            "goals_distribution": {k: round(goals[k], 4) for k in sorted(goals, key=lambda x: int(x))}}
+            "goals_distribution": {k: round(goals[k], 4) for k in sorted(goals, key=lambda x: int(x))[:17]}}
 
 # ===== 3. Kelly分析 =====
 @mcp.tool()
@@ -83,7 +102,7 @@ def comprehensive_match_analysis(home_team: str, away_team: str,
     o = odds_implied_probabilities(odds_home, odds_draw, odds_away)
     k = kelly_analyze(e['expected_home_win'], odds_home)
     w = HYPERPARAMS.get('weights', {'fundamental_quant': 0.19, 'contrarian_quant': 0.468, 'smart_money_quant': 0.342})
-    return {"match": f"{home_team} vs {away_team}", "elo": e, "odds": o, "kelly": k, "evolution_weights": w}
+    return {"match": f"{home_team} vs {away_team}", "elo": e, "odds": o, "kelly": k, "hyperparams_weights": w}
 
 # ===== 22. AI原生：思维外壳 =====
 @mcp.tool()
@@ -199,18 +218,33 @@ def get_league_factor(league_name: str) -> dict:
 
 # Chinese→English ELO team name mapping
 ELO_NAME_MAP = {
+    # 五大联赛
     "阿贾克斯": "Ajax", "AC米兰": "Milan", "国际米兰": "Inter Milan",
     "尤文图斯": "Juventus", "那不勒斯": "Napoli", "罗马": "Roma", "亚特兰大": "Atalanta",
+    "都灵": "Torino", "拉齐奥": "Lazio", "佛罗伦萨": "Fiorentina", "博洛尼亚": "Bologna",
     "巴萨": "Barcelona", "皇马": "Real Madrid", "马竞": "Atletico Madrid",
+    "塞维利亚": "Sevilla", "贝蒂斯": "Real Betis", "皇家社会": "Real Sociedad",
     "拜仁": "Bayern Munich", "多特蒙德": "Borussia Dortmund",
     "巴黎圣日耳曼": "Paris Saint-Germain", "巴黎": "Paris Saint-Germain",
+    "马赛": "Marseille", "里昂": "Lyon", "摩纳哥": "Monaco",
     "曼城": "Manchester City", "曼联": "Manchester United", "阿森纳": "Arsenal",
     "利物浦": "Liverpool", "切尔西": "Chelsea", "热刺": "Tottenham",
+    # 德甲中下游
     "西汉姆联": "West Ham", "科隆": "Koln", "海登海姆": "Heidenheim",
-    "美因茨": "Mainz", "柏林联合": "Union Berlin",
+    "美因茨": "Mainz", "柏林联合": "Union Berlin", "莱比锡": "RB Leipzig",
+    "勒沃库森": "Bayer Leverkusen", "沃尔夫斯堡": "Wolfsburg", "斯图加特": "Stuttgart",
+    # 其他欧洲
     "奥林匹亚科斯": "Olympiacos", "塞萨洛尼基": "PAOK",
     "亚布洛内茨": "Jablonec", "赫拉德茨": "Hradec Kralove",
-    "亨克": "Genk", "韦斯特洛": "Westerlo",
+    "亨克": "Genk", "韦斯特洛": "Westerlo", "布鲁日": "Club Brugge",
+    "埃因霍温": "PSV Eindhoven", "费耶诺德": "Feyenoord",
+    # 日韩
+    "横滨水手": "Yokohama F. Marinos", "浦和红钻": "Urawa Red Diamonds",
+    "鹿岛鹿角": "Kashima Antlers", "川崎前锋": "Kawasaki Frontale",
+    "全北现代": "Jeonbuk Hyundai", "蔚山HD": "Ulsan HD",
+    # 南美
+    "博卡青年": "Boca Juniors", "河床": "River Plate",
+    "弗拉门戈": "Flamengo", "帕尔梅拉斯": "Palmeiras",
 }
 # ===== 7. ELO查询 =====
 @mcp.tool()
@@ -258,35 +292,48 @@ def mxn_calculator(matches_sp: list, m: int, n: int = 1, stake: float = 100, lot
     details = []
     for combo in combos:
         sp = np.prod([matches_sp[i] for i in combo]) * rate
-        prize = min(2 * sp, max_limit)
-        if prize >= 10000: prize *= 0.80
-        details.append({"combo": list(combo), "sp": round(sp, 2), "prize": round(prize, 2)})
+        prize_mult = min(2 * sp, max_limit)
+        if prize_mult >= 10000: prize_mult *= 0.80
+        actual_prize = round(stake * sp * (0.71 if lottery_type == "jingcai" else 0.65), 0)
+        details.append({"combo": list(combo), "sp": round(sp, 2), 
+                        "prize_per_2yuan": round(prize_mult, 2),
+                        "actual_prize": actual_prize})
     return {"type": f"{m}串{n}", "lottery": lottery_type, "combos": len(combos),
             "max_prize": max(d['prize'] for d in details) if details else 0, "samples": details[:3]}
 
 # ===== 10. 串关优化 =====
 @mcp.tool()
-def parlay_optimizer(matches: list, lottery_type: str = "jingcai", budget: float = 100) -> dict:
-    """智能串关推荐。自动过滤(K>阈值 & SP<3.0 & 胜率>35%)，生成2串1到N串1。"""
-    th = 0.08 if lottery_type.lower() == "beidan" else 0.05
+def parlay_optimizer(matches: list, lottery_type: str = "jingcai", budget: float = 100,
+                     min_kelly: float = 0.0, min_sp: float = 1.20, max_sp: float = 3.50,
+                     min_prob: float = 0.30) -> dict:
+    """智能串关推荐。自动过滤(K>阈值 & SP范围内 & 胜率>阈值)，生成2串1到N串1。
+    
+    Args:
+        min_kelly: 最低凯利阈值(0=自动按彩种选择:竞彩0.05/北单0.08)
+        min_sp: 最低SP过滤(默认1.20)
+        max_sp: 最高SP过滤(默认3.50)
+        min_prob: 最低胜率过滤(默认0.30)
+    """
+    th = min_kelly if min_kelly > 0 else (0.08 if lottery_type.lower() == "beidan" else 0.05)
     valid = []
     for m in matches:
         k = m.get('kelly_h', m.get('kelly', 0))
         sp = m.get('sp_h', m.get('sp', 99))
         prob = m.get('prob_h', m.get('win_prob', 0))
-        if k > th and sp < 3.5 and prob > 0.30:
+        if k > th and min_sp <= sp <= max_sp and prob > min_prob:
             valid.append({**m, 'kelly': k, 'sp': sp, 'win_prob': prob})
-    if len(valid) < 2: return {"error": "可串关场次不足"}
+    if len(valid) < 2: return {"error": f"可串关场次不足(需≥2,当前{len(valid)})", "threshold_used": th, "valid_count": len(valid)}
     rate = 0.65 if lottery_type.lower() == "beidan" else 1.0
     results = []
-    for k in range(2, min(len(valid)+1, 7)):
+    max_n = min(len(valid), 6)
+    for k in range(2, max_n + 1):
         sp = 1.0
         for m in valid[:k]: sp *= m['sp']
         sp *= rate
-        results.append({"type": f"{k}串1", "sp": round(sp, 2), "prize_100": round(100*sp, 0),
-                        "matches": [m['name'] for m in valid[:k]],
+        results.append({"type": f"{k}串1", "sp": round(sp, 2), "prize_100": round(budget*sp*rate if lottery_type=="beidan" else budget*sp*0.71, 0),
+                        "matches": [m.get('name', m.get('match','?')) for m in valid[:k]],
                         "risk": "低" if k<=2 else ("中" if k<=4 else "高")})
-    return {"lottery": lottery_type, "valid_count": len(valid), "recommendations": results}
+    return {"lottery": lottery_type, "valid_count": len(valid), "threshold_used": th, "recommendations": results}
 
 # ===== 11. 进化反馈 =====
 @mcp.tool()
@@ -341,17 +388,32 @@ def bankroll_calculator(bankroll: float, risk_level: str = "medium", num_bets: i
 def scrape_500_jczq(date: str = "") -> dict:
     """从500.com爬取竞彩足球实时SP值和赛程。返回结构化JSON（队名/SP/让球/编号/状态）。"""
     import requests
-    url = f"https://trade.500.com/jczq/?playid=312&g=2{'&date='+date if date else ''}"
-    try:
-        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}, timeout=10)
-        html = resp.text
-        if resp.status_code != 200 or len(html) < 500:
-            return {"ok": False, "error": f"HTTP{resp.status_code}" if resp.status_code != 200 else "empty"}
-        matches = _parse_500_html(html, lottery_type="jingcai")
-        return {"ok": True, "source": "500.com/jczq", "match_count": len(matches), "matches": matches,
-                "note": "Structured JSON — parsed from live 500.com page"}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    import re
+    urls = [
+        f"https://trade.500.com/jczq/",
+        f"https://trade.500.com/jczq/?playid=312&g=2",
+    ]
+    if date:
+        urls = [u + ('&' if '?' in u else '?') + f'date={date}' for u in urls]
+    html = ""
+    last_error = ""
+    for url in urls:
+        try:
+            resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}, timeout=10)
+            if resp.status_code == 200 and len(resp.text) > 500:
+                html = resp.text
+                break
+            last_error = f"HTTP{resp.status_code}" if resp.status_code != 200 else "empty"
+        except Exception as e:
+            last_error = str(e)
+    if not html:
+        return {"ok": False, "error": f"all URLs failed: {last_error}", "urls_tried": urls}
+    # Try _parse_500_html first, fallback to jczq-specific parser
+    matches = _parse_500_html(html, lottery_type="jingcai")
+    if not matches:
+        matches = _parse_jczq_html(html)
+    return {"ok": True, "source": "500.com/jczq", "match_count": len(matches), "matches": matches[:50],
+            "note": "Structured JSON — parsed from live 500.com page"}
 
 # ===== 16. 北单500.com爬取 =====
 @mcp.tool()
@@ -539,9 +601,15 @@ def match_narrative_analyzer(home_team: str, away_team: str, home_rank: int = 0,
         '英超': '快节奏身体对抗,下半场进球多',
         '德甲': '高位压迫大比分,屠杀型比赛多',
         '意甲': '防守纪律强,小球平局多,1-0常见',
+        '西甲': '技术流传控为主,主胜率48.8%,上半场节奏偏慢',
+        '法甲': '竞争相对均衡,巴黎统治力强,中下游差距小',
         '法乙': '平局率31%,法乙是平局之王',
-        '挪超': '大球联赛,场均3.17球',
-        '意乙': '平局率31%,意乙小球为主',
+        '挪超': '大球联赛,场均3.17球,主场优势大',
+        '意乙': '平局率31%,意乙小球为主,防守反击',
+        '荷甲': '攻势足球,场均3.08球,青年才俊多',
+        '日职': '技术流低进球(2.35球),主场优势弱',
+        '韩职': '身体对抗强,平局率低,分胜负能力强',
+        '澳超': '大球联赛(3.05球),防守松散,娱乐性强',
     }
     
     return {
@@ -652,18 +720,18 @@ def win_loss_analyzer(matches: list) -> dict:
     
     # Generate parlay suggestions
     suggestions = []
-    for n in [3, 5, 8, 15]:
-        if len(picks) >= n:
-            combo_sp = 1.0
-            for p in picks[:n]:
-                combo_sp *= p['sp']
-            combo_sp *= 0.65  # 北单65%返奖
-            suggestions.append({
-                "level": f"{n}串1",
-                "sp": round(combo_sp, 2),
-                "prize_100": round(100 * combo_sp, 0),
-                "matches": [f"{p['home']} vs {p['away']} → {p['pick']}({p['sp']})" for p in picks[:n]],
-            })
+    levels = [n for n in [2, 3, 5, 8, 15] if len(picks) >= n]
+    for n in levels[:4]:  # max 4 suggestions
+        combo_sp = 1.0
+        for p in picks[:n]:
+            combo_sp *= p['sp']
+        combo_sp *= 0.65  # 北单65%返奖
+        suggestions.append({
+            "level": f"{n}串1",
+            "sp": round(combo_sp, 2),
+            "prize_100": round(100 * combo_sp, 0),
+            "matches": [f"{p.get('home',p.get('home_team','?'))} vs {p.get('away',p.get('away_team','?'))} → {p['pick']}(SP{p['sp']})" for p in picks[:n]],
+        })
     
     return {
         "lottery_type": "beidan",
@@ -763,10 +831,75 @@ def market_signal_analyzer(odds_home: float, odds_draw: float, odds_away: float,
     }
 
 def _tell_market_story(oh, od, oa):
-    if oh < 1.40: return f"市场叙事: '这是一场碾压局'(主胜{oh}),但注意赔率<1.30时82.8%实测胜率虽高,回报有限"
-    if oh > 3.0: return f"市场叙事: '冷门温床'(主胜{oh}),但>2.80时实测胜率仅23%,需基本面确认"
-    if od < 3.0: return f"市场叙事: '平局是认真选项'(平赔{od}),不宜单选胜负"
-    return f"市场叙事: '均衡之战',三方赔率接近,任何结果都不意外"
+    if oh < 1.30: return f"市场叙事: '碾压局' — 主胜赔率{oh}极低，市场认为实力悬殊"
+    if oh < 1.60: return f"市场叙事: '主队明显占优' — 赔率{oh}表明市场看好主队，但非稳赢"
+    if oh < 2.00: return f"市场叙事: '主队被看好' — 赔率{oh}温和倾向主队，有分析空间"
+    if oh > 4.00: return f"市场叙事: '大冷门预警' — 主胜赔率{oh}极高，市场几乎放弃主队"
+    if oh > 3.00: return f"市场叙事: '冷门倾向' — 主胜{oh}偏高,客队被看好"
+    if od < 3.00: return f"市场叙事: '平局是认真选项' — 平赔{od}偏低，关注平局"
+    return f"市场叙事: '真正均衡' — 双方赔率接近({oh}/{od}/{oa})，胜负难料"
+
+
+def _parse_jczq_html(html: str) -> list:
+    """解析竞彩足球500.com HTML（独立于北单解析器）。"""
+    import re
+    matches = []
+    # Match table rows with match data
+    rows = re.findall(r'<tr\s+[^>]*?(?:class="[^"]*"[^>]*)?>(.*?)</tr>', html, re.DOTALL)
+    for row in rows:
+        # Extract all text cells
+        cells = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL)
+        clean = [re.sub(r'<[^>]+>', '', c).strip() for c in cells]
+        clean = [c for c in clean if c and c != '&nbsp;']
+        if len(clean) < 6: continue
+        # Detect match row: starts with a number
+        try:
+            num = int(re.sub(r'\[.*?\]', '', clean[0]).strip())
+        except ValueError:
+            continue
+        if num < 1: continue
+        match = {"num": num, "league": "", "time": "", "home": "", "away": "", 
+                 "handicap": "0", "sp_h": "0", "sp_d": "0", "sp_a": "0", 
+                 "score": None, "status": "upcoming", "lottery_type": "jingcai"}
+        idx = 1
+        # Try to identify league/time
+        for i in range(1, min(len(clean), 4)):
+            if re.match(r'\d{2}:\d{2}', clean[i]):
+                match["time"] = clean[i]
+                if i > 1: match["league"] = clean[i-1]
+                idx = i + 1
+                break
+        # Find SP values (decimal numbers like 1.75)
+        sp_vals = []
+        for i in range(idx, len(clean)):
+            try:
+                v = float(clean[i])
+                if 1.01 <= v <= 999:
+                    sp_vals.append((i, v))
+            except ValueError:
+                continue
+        if len(sp_vals) >= 3:
+            sp_start = sp_vals[-3][0]
+            match["sp_h"] = str(sp_vals[-3][1])
+            match["sp_d"] = str(sp_vals[-2][1])
+            match["sp_a"] = str(sp_vals[-1][1])
+            # Home/Away teams are before the SP values
+            if sp_start - 2 >= idx:
+                match["away"] = clean[sp_start - 2]
+            if sp_start - 3 >= idx:
+                match["home"] = clean[sp_start - 3]
+            # Check for handicap between home and away
+            if sp_start - 2 > idx and re.match(r'^[+-]?\d+$', clean[sp_start - 2]):
+                match["handicap"] = clean[sp_start - 2]
+        # Check score
+        for c in clean:
+            if re.match(r'^\d+:\d+$', c):
+                match["score"] = c
+                match["status"] = "finished"
+                break
+        if match["sp_h"] != "0":
+            matches.append(match)
+    return matches
 
 
 def _parse_500_html(html: str, lottery_type: str = "beidan") -> list:
