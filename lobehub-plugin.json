@@ -1,36 +1,135 @@
 {
   "name": "afa-football-analyzer",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "displayName": "⚽ AFA 足球量化分析引擎",
-  "description": "竞彩足球+北京单场12玩法全覆盖 · 22个MCP工具 · AI原生推理 · 15.9万场历史数据校准",
+  "description": "竞彩足球+北京单场12玩法全覆盖 · 25个MCP工具 · AI原生推理 · 15.9万场历史数据校准",
   "author": "AFA Team",
   "homepage": "https://github.com/luenglueng205-rgb/afa-football-analyzer",
   "icon": "⚽",
-  "categories": ["数据分析", "体育", "金融量化"],
-  "tags": ["足球", "竞彩", "北单", "量化分析", "赔率", "MCP"],
+  "categories": [
+    "数据分析",
+    "体育",
+    "金融量化"
+  ],
+  "tags": [
+    "足球",
+    "竞彩",
+    "北单",
+    "量化分析",
+    "赔率",
+    "MCP"
+  ],
   "mcp": {
     "command": "python3",
-    "args": ["-m", "afa_mcp.server"],
+    "args": [
+      "-m",
+      "afa_mcp.server"
+    ],
     "env": {
       "PYTHONPATH": "${PACKAGE_DIR}/src",
       "AFA_DATA_DIR": "${PACKAGE_DIR}/data"
     }
   },
   "tools": [
-    {"name": "think_match", "description": "AI原生：比赛全维思考，一站式返回所有洞察"},
-    {"name": "match_narrative_analyzer", "description": "AI原生：读懂比赛叙事（德比/保级/连胜动量）"},
-    {"name": "market_signal_analyzer", "description": "AI原生：解读赔率背后的市场心理"},
-    {"name": "elo_calculate", "description": "ELO评分计算与赛后更新"},
-    {"name": "dixon_coles_predict", "description": "Dixon-Coles双变量泊松比分预测"},
-    {"name": "kelly_analyze", "description": "Kelly公式 · 竞彩/北单阈值自动区分"},
-    {"name": "score_probability_matrix", "description": "完整比分概率矩阵+总进球+上下单双"},
-    {"name": "monte_carlo_simulator", "description": "蒙特卡洛5000次模拟"},
-    {"name": "mxn_calculator", "description": "M串N组合+奖金(含封顶扣税)"},
-    {"name": "parlay_optimizer", "description": "智能串关推荐(2串1到N串1)"},
-    {"name": "smart_bet_selector", "description": "价值投注筛选+EV排序"},
-    {"name": "scrape_500_jczq", "description": "500.com竞彩实时SP爬取"},
-    {"name": "scrape_500_beidan", "description": "500.com北京单场实时SP爬取"},
-    {"name": "beidan_sxds_analyzer", "description": "北单上下单双+联赛因子修正"},
-    {"name": "evolution_status", "description": "进化引擎状态(129次回测)"}
+    {
+      "name": "think_match",
+      "description": "AI原生：比赛全维思考(ELO+Kelly+赔率+叙事+联赛因子)"
+    },
+    {
+      "name": "half_full_analyzer",
+      "description": "半全场胜平负9选项概率(竞彩+北单)"
+    },
+    {
+      "name": "win_loss_analyzer",
+      "description": "北单胜负过关分析(15关串关)"
+    },
+    {
+      "name": "official_knowledge",
+      "description": "官方规则知识库：12种玩法/返奖率/封顶/阈值"
+    },
+    {
+      "name": "match_narrative_analyzer",
+      "description": "AI原生：读懂比赛叙事(德比/保级/连胜动量)"
+    },
+    {
+      "name": "market_signal_analyzer",
+      "description": "AI原生：解读赔率背后的市场心理"
+    },
+    {
+      "name": "elo_calculate",
+      "description": "ELO评分计算与赛后更新"
+    },
+    {
+      "name": "dixon_coles_predict",
+      "description": "Dixon-Coles双变量泊松比分预测"
+    },
+    {
+      "name": "kelly_analyze",
+      "description": "Kelly公式·竞彩/北单阈值自动区分"
+    },
+    {
+      "name": "score_probability_matrix",
+      "description": "完整比分概率矩阵+总进球+上下单双"
+    },
+    {
+      "name": "monte_carlo_simulator",
+      "description": "蒙特卡洛5000次模拟"
+    },
+    {
+      "name": "mxn_calculator",
+      "description": "M串N组合+奖金(含封顶扣税)"
+    },
+    {
+      "name": "parlay_optimizer",
+      "description": "智能串关推荐(2串1到N串1)"
+    },
+    {
+      "name": "smart_bet_selector",
+      "description": "价值投注筛选+EV排序"
+    },
+    {
+      "name": "scrape_500_jczq",
+      "description": "500.com竞彩实时SP爬取→结构化JSON"
+    },
+    {
+      "name": "scrape_500_beidan",
+      "description": "500.com北京单场实时SP爬取→结构化JSON"
+    },
+    {
+      "name": "beidan_sxds_analyzer",
+      "description": "北单上下单双+联赛因子修正"
+    },
+    {
+      "name": "evolution_status",
+      "description": "进化引擎状态(129次回测)"
+    },
+    {
+      "name": "odds_calibration_lookup",
+      "description": "赔率→实测胜率校准(8.9万场)"
+    },
+    {
+      "name": "get_team_elo",
+      "description": "ELO数据库查询(中英文模糊匹配)"
+    },
+    {
+      "name": "get_league_factor",
+      "description": "联赛量化因子(15.9万场实测)"
+    },
+    {
+      "name": "bankroll_calculator",
+      "description": "资金管理(风险等级/单日上限)"
+    },
+    {
+      "name": "odds_implied_probabilities",
+      "description": "欧赔→市场隐含概率"
+    },
+    {
+      "name": "comprehensive_match_analysis",
+      "description": "一键综合：ELO+赔率+Kelly"
+    },
+    {
+      "name": "evolution_feedback",
+      "description": "赛后复盘反馈+权重调整建议"
+    }
   ]
 }

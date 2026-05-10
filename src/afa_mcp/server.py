@@ -97,13 +97,15 @@ def think_match(home_team: str, away_team: str,
     这是Agent最应该调用的入口工具——一次调用获得全部洞察。
     """
     # Layer 1: All calculations
-    cal = odds_calibration_lookup(odds_home)
+    cal = odds_calibration_lookup(odds_home) if odds_home > 0 else {"actual_win_rate": 0.5, "advice": "N/A"}
     lf = get_league_factor(league) if league else {"factors": {"avg_goals": 2.5}}
     imp = odds_implied_probabilities(odds_home, odds_draw, odds_away)
-    kelly_r = kelly_analyze(0.55, odds_home)  # default prob, Agent should override
+    elo_prob = 1.0 / (1.0 + 10.0 ** ((away_elo - home_elo - 65.0) / 400.0))
+    kelly_r = kelly_analyze(elo_prob, odds_home, lottery_type="jingcai")
     
     # Layer 2: Score matrix  
-    lam = lf.get('factors', {}).get('avg_goals', 2.5) / 2
+    factors = lf.get('factors') or {}
+    lam = factors.get('avg_goals', 2.5) / 2
     score_r = score_probability_matrix(lam * 1.2 * 1.25, lam * 0.9 / 1.25)
     
     # Layer 3: Market story
@@ -194,11 +196,32 @@ def get_league_factor(league_name: str) -> dict:
     lf = LEAGUE_FACTORS.get(league_name)
     return {"league": league_name, "factors": lf, "source": "15.9万场实测" if lf else "默认(数据不足)"}
 
+
+# Chinese→English ELO team name mapping
+ELO_NAME_MAP = {
+    "阿贾克斯": "Ajax", "AC米兰": "Milan", "国际米兰": "Inter Milan",
+    "尤文图斯": "Juventus", "那不勒斯": "Napoli", "罗马": "Roma", "亚特兰大": "Atalanta",
+    "巴萨": "Barcelona", "皇马": "Real Madrid", "马竞": "Atletico Madrid",
+    "拜仁": "Bayern Munich", "多特蒙德": "Borussia Dortmund",
+    "巴黎圣日耳曼": "Paris Saint-Germain", "巴黎": "Paris Saint-Germain",
+    "曼城": "Manchester City", "曼联": "Manchester United", "阿森纳": "Arsenal",
+    "利物浦": "Liverpool", "切尔西": "Chelsea", "热刺": "Tottenham",
+    "西汉姆联": "West Ham", "科隆": "Koln", "海登海姆": "Heidenheim",
+    "美因茨": "Mainz", "柏林联合": "Union Berlin",
+    "奥林匹亚科斯": "Olympiacos", "塞萨洛尼基": "PAOK",
+    "亚布洛内茨": "Jablonec", "赫拉德茨": "Hradec Kralove",
+    "亨克": "Genk", "韦斯特洛": "Westerlo",
+}
 # ===== 7. ELO查询 =====
 @mcp.tool()
 def get_team_elo(team_name: str) -> dict:
-    """从1062队ELO数据库查询球队评级。支持模糊匹配。"""
-    matches = [(k, v) for k, v in ELO_DB.items() if team_name.lower() in k.lower()]
+    """从1062队ELO数据库查询球队评级。支持中英文模糊匹配。"""
+    # Try Chinese→English mapping first
+    search_name = ELO_NAME_MAP.get(team_name, team_name)
+    matches = [(k, v) for k, v in ELO_DB.items() if search_name.lower() in k.lower()]
+    if not matches:
+        # Fallback: try original Chinese name
+        matches = [(k, v) for k, v in ELO_DB.items() if team_name.lower() in k.lower()]
     return {"query": team_name, "results": [{"team": k, "elo": round(v,1)} for k,v in sorted(matches, key=lambda x:-x[1])[:10]], "total": len(matches)}
 
 # ===== 8. 比分全景矩阵 =====
@@ -246,7 +269,13 @@ def mxn_calculator(matches_sp: list, m: int, n: int = 1, stake: float = 100, lot
 def parlay_optimizer(matches: list, lottery_type: str = "jingcai", budget: float = 100) -> dict:
     """智能串关推荐。自动过滤(K>阈值 & SP<3.0 & 胜率>35%)，生成2串1到N串1。"""
     th = 0.08 if lottery_type.lower() == "beidan" else 0.05
-    valid = [m for m in matches if m.get('kelly', 0) > th and m.get('sp', 99) < 3.0 and m.get('win_prob', 0) > 0.35]
+    valid = []
+    for m in matches:
+        k = m.get('kelly_h', m.get('kelly', 0))
+        sp = m.get('sp_h', m.get('sp', 99))
+        prob = m.get('prob_h', m.get('win_prob', 0))
+        if k > th and sp < 3.5 and prob > 0.30:
+            valid.append({**m, 'kelly': k, 'sp': sp, 'win_prob': prob})
     if len(valid) < 2: return {"error": "可串关场次不足"}
     rate = 0.65 if lottery_type.lower() == "beidan" else 1.0
     results = []
@@ -310,30 +339,34 @@ def bankroll_calculator(bankroll: float, risk_level: str = "medium", num_bets: i
 # ===== 15. 500.com爬取 =====
 @mcp.tool()
 def scrape_500_jczq(date: str = "") -> dict:
-    """从500.com爬取竞彩足球实时SP值和赛程。作为数据采集首选源。"""
+    """从500.com爬取竞彩足球实时SP值和赛程。返回结构化JSON（队名/SP/让球/编号/状态）。"""
     import requests
     url = f"https://trade.500.com/jczq/?playid=312&g=2{'&date='+date if date else ''}"
     try:
-        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
-        if resp.status_code != 200: return {"ok": False, "error": f"HTTP{resp.status_code}"}
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}, timeout=10)
         html = resp.text
-        if len(html) < 200: return {"ok": False, "error": "empty"}
-        return {"ok": True, "source": "500.com", "html_length": len(html), "note": "Raw HTML - parse SP values client-side"}
+        if resp.status_code != 200 or len(html) < 500:
+            return {"ok": False, "error": f"HTTP{resp.status_code}" if resp.status_code != 200 else "empty"}
+        matches = _parse_500_html(html, lottery_type="jingcai")
+        return {"ok": True, "source": "500.com/jczq", "match_count": len(matches), "matches": matches,
+                "note": "Structured JSON — parsed from live 500.com page"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
 # ===== 16. 北单500.com爬取 =====
 @mcp.tool()
 def scrape_500_beidan(date: str = "") -> dict:
-    """从500.com爬取北京单场实时SP值和赛程。北单数据独立来源。"""
+    """从500.com爬取北京单场实时SP值和赛程。返回结构化JSON（场次/赛事/主客队/让球/SP/状态）。"""
     import requests
     url = f"https://trade.500.com/bjdc/index.php{'?date='+date if date else ''}"
     try:
-        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
-        if resp.status_code != 200: return {"ok": False, "error": f"HTTP{resp.status_code}"}
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}, timeout=10)
         html = resp.text
-        if len(html) < 200: return {"ok": False, "error": "empty"}
-        return {"ok": True, "source": "500.com/beidan", "html_length": len(html), "note": "Raw HTML - includes 让球/SP/上下单双数据"}
+        if resp.status_code != 200 or len(html) < 500:
+            return {"ok": False, "error": f"HTTP{resp.status_code}" if resp.status_code != 200 else "empty"}
+        matches = _parse_500_html(html, lottery_type="beidan")
+        return {"ok": True, "source": "500.com/beidan", "match_count": len(matches), "matches": matches,
+                "note": "Structured JSON — includes 场次/赛事/主队/客队/让球/SP/状态"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -545,6 +578,148 @@ def _risk_flags(hr: int, ar: int, derby: bool, injuries: int) -> list:
     if abs(hr - ar) > 12: risks.append("排名悬殊警惕冷门")
     return risks
 
+
+
+# ===== 22. 半全场分析器 =====
+@mcp.tool()
+def half_full_analyzer(home_win_prob: float, draw_prob: float, away_win_prob: float,
+                        lottery_type: str = "jingcai") -> dict:
+    """半全场胜平负概率分析。竞彩和北单均有9个选项(胜胜/胜平/胜负/平胜/平平/平负/负胜/负平/负负)。
+    
+    竞彩半全场可直接投注；北单半全场最多3关。
+    """
+    h = max(0, min(1, home_win_prob))
+    d = max(0, min(1, draw_prob))
+    a = max(0, min(1, away_win_prob))
+    
+    # Half-time probabilities (correlated with full-time via league factors)
+    # Home teams tend to lead at HT more often when they win FT
+    h_lead_given_hw = 0.60; h_draw_given_hw = 0.30; h_behind_given_hw = 0.10
+    h_lead_given_d = 0.20; h_draw_given_d = 0.60; h_behind_given_d = 0.20
+    h_lead_given_aw = 0.08; h_draw_given_aw = 0.25; h_behind_given_aw = 0.67
+    
+    results = {
+        "胜胜": round(h * h_lead_given_hw, 4),
+        "胜平": round(h * h_draw_given_hw, 4),
+        "胜负": round(h * h_behind_given_hw, 4),
+        "平胜": round(d * h_lead_given_d, 4),
+        "平平": round(d * h_draw_given_d, 4),
+        "平负": round(d * h_behind_given_d, 4),
+        "负胜": round(a * h_lead_given_aw, 4),
+        "负平": round(a * h_draw_given_aw, 4),
+        "负负": round(a * h_behind_given_aw, 4),
+    }
+    
+    total = sum(results.values()) or 1.0
+    results = {k: round(v/total, 4) for k, v in results.items()}
+    
+    max_option = max(results, key=results.get)
+    max_guanguan = 3 if lottery_type == "beidan" else 8
+    
+    return {
+        "lottery_type": lottery_type,
+        "options_count": 9,
+        "probabilities": results,
+        "best_pick": max_option,
+        "best_prob": results[max_option],
+        "max_parlay_level": max_guanguan,
+        "note": "竞彩半全场可单关/串关；北单半全场最多3关" if lottery_type == "beidan" else "竞彩半全场支持单关和混合过关",
+    }
+
+# ===== 23. 北单胜负过关分析器 =====
+@mcp.tool()
+def win_loss_analyzer(matches: list) -> dict:
+    """北单胜负过关玩法分析。筛选胜负明确的比赛，生成过关方案。
+    
+    胜负过关：只猜胜负（不含平局），适合强弱分明的比赛串关。
+    北单独有玩法，最多15关。
+    """
+    # Filter: clear favorites (SP < 1.80) or heavy underdogs with upside
+    picks = []
+    for m in matches:
+        sp_h = float(m.get('sp_h', 2.0))
+        sp_a = float(m.get('sp_a', 2.0))
+        if sp_h < 1.80:
+            picks.append({**m, 'pick': '主胜', 'sp': sp_h, 'confidence': '高'})
+        elif sp_a < 1.80:
+            picks.append({**m, 'pick': '客胜', 'sp': sp_a, 'confidence': '高'})
+        elif sp_h < 2.20:
+            picks.append({**m, 'pick': '主胜', 'sp': sp_h, 'confidence': '中'})
+        elif sp_a < 2.20:
+            picks.append({**m, 'pick': '客胜', 'sp': sp_a, 'confidence': '中'})
+    
+    picks.sort(key=lambda x: x['sp'])
+    
+    # Generate parlay suggestions
+    suggestions = []
+    for n in [3, 5, 8, 15]:
+        if len(picks) >= n:
+            combo_sp = 1.0
+            for p in picks[:n]:
+                combo_sp *= p['sp']
+            combo_sp *= 0.65  # 北单65%返奖
+            suggestions.append({
+                "level": f"{n}串1",
+                "sp": round(combo_sp, 2),
+                "prize_100": round(100 * combo_sp, 0),
+                "matches": [f"{p['home']} vs {p['away']} → {p['pick']}({p['sp']})" for p in picks[:n]],
+            })
+    
+    return {
+        "lottery_type": "beidan",
+        "play_type": "胜负过关",
+        "description": "只猜胜负(不含平局)，北单独有玩法，最多15关",
+        "available_picks": len(picks),
+        "top_picks": picks[:10],
+        "parlay_suggestions": suggestions[:4],
+        "note": "胜负过关无平局选项，适合强弱分明的比赛；返奖率65%",
+    }
+
+# ===== 24. 官方规则知识库 =====
+LOTTERY_RULES = {
+    "jingcai": {
+        "name": "竞彩足球",
+        "plays": {
+            "胜平负": {"options": 3, "single": True, "max_parlay": 8},
+            "让球胜平负": {"options": 3, "single": True, "max_parlay": 8},
+            "比分": {"options": 31, "single": True, "max_parlay": 4},
+            "总进球": {"options": 8, "single": True, "max_parlay": 6},
+            "半全场": {"options": 9, "single": True, "max_parlay": 4},
+            "混合过关": {"options": "mixed", "single": False, "max_parlay": 8},
+        },
+        "payout_rate": 0.71,
+        "odds_type": "fixed",
+        "kelly_threshold": 0.05,
+        "prize_cap": {2: 200000, 3: 200000, 4: 500000, 5: 500000, 6: 1000000},
+    },
+    "beidan": {
+        "name": "北京单场",
+        "plays": {
+            "胜平负(含让球)": {"options": 3, "single": True, "max_parlay": 6},
+            "总进球": {"options": 8, "single": True, "max_parlay": 6},
+            "比分": {"options": 25, "single": True, "max_parlay": 3},
+            "半全场": {"options": 9, "single": True, "max_parlay": 3},
+            "上下单双": {"options": 4, "single": True, "max_parlay": 6},
+            "胜负过关": {"options": 2, "single": True, "max_parlay": 15},
+        },
+        "payout_rate": 0.65,
+        "odds_type": "floating_sp",
+        "kelly_threshold": 0.08,
+        "prize_cap": None,
+    },
+}
+
+@mcp.tool()
+def official_knowledge(lottery_type: str = "all") -> dict:
+    """查询官方彩票规则知识库。包含竞彩和北单全部12种玩法的选项数、过关限制、返奖率等。
+    
+    Args:
+        lottery_type: jingcai(竞彩) / beidan(北单) / all(全部)
+    """
+    if lottery_type == "all":
+        return {"rules": LOTTERY_RULES, "total_plays": 12,
+                "note": "竞彩6种+北单6种=12种玩法。竞彩固定赔率71%返奖，北单浮动SP值65%返奖。"}
+    return {"rules": {lottery_type: LOTTERY_RULES.get(lottery_type, {})}}
 # ===== 21. AI原生：市场信号研判 =====
 @mcp.tool()
 def market_signal_analyzer(odds_home: float, odds_draw: float, odds_away: float,
@@ -592,6 +767,49 @@ def _tell_market_story(oh, od, oa):
     if oh > 3.0: return f"市场叙事: '冷门温床'(主胜{oh}),但>2.80时实测胜率仅23%,需基本面确认"
     if od < 3.0: return f"市场叙事: '平局是认真选项'(平赔{od}),不宜单选胜负"
     return f"市场叙事: '均衡之战',三方赔率接近,任何结果都不意外"
+
+
+def _parse_500_html(html: str, lottery_type: str = "beidan") -> list:
+    """解析500.com HTML为结构化比赛数据。"""
+    import re
+    trs = re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.DOTALL)
+    matches = []
+    for tr in trs:
+        tr = re.sub(r'<script.*?</script>', '', tr, flags=re.DOTALL)
+        tr = re.sub(r'<[^>]+>', '|', tr)
+        tr = tr.replace('&nbsp;', '')
+        cells = [c.strip() for c in tr.split('|') if c.strip()]
+        if len(cells) < 10: continue
+        try: num = int(cells[0])
+        except: continue
+        if num < 1: continue
+        league = cells[1] if len(cells) > 1 else ''
+        time_str = cells[2] if len(cells) > 2 else ''
+        home_idx = 3
+        if home_idx < len(cells) and cells[home_idx].startswith('['): home_idx = 4
+        home = cells[home_idx] if home_idx < len(cells) else ''
+        hc_idx = home_idx + 1
+        handicap = cells[hc_idx] if hc_idx < len(cells) else '0'
+        away_idx = hc_idx + 1
+        away = cells[away_idx] if away_idx < len(cells) else ''
+        sp_start = away_idx + 1
+        if sp_start < len(cells) and cells[sp_start].startswith('['): sp_start += 1
+        sp_h = cells[sp_start] if sp_start < len(cells) else '0'
+        sp_d = cells[sp_start+1] if sp_start+1 < len(cells) else '0'
+        sp_a = cells[sp_start+2] if sp_start+2 < len(cells) else '0'
+        try: float(sp_h)
+        except: continue
+        score = None
+        for i in range(sp_start+3, min(len(cells), 25)):
+            if re.match(r'^\d+:\d+$', cells[i]): score = cells[i]; break
+        matches.append({
+            "num": num, "league": league, "time": time_str,
+            "home": home, "handicap": handicap, "away": away,
+            "sp_h": sp_h, "sp_d": sp_d, "sp_a": sp_a,
+            "score": score, "status": "finished" if score else "upcoming",
+            "lottery_type": lottery_type,
+        })
+    return matches
 
 def main():
     """Entry point for `afa-mcp-server` CLI command."""
