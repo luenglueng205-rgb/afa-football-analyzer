@@ -216,19 +216,45 @@ def think_match(home_team: str, away_team: str,
     }
 
 # ===== 6. 联赛因子 =====
+# Chinese short name → JSON full name mapping (generated data uses full names)
+LEAGUE_NAME_MAP = {
+    "英超": "英格兰超级联赛", "英冠": "英格兰冠军联赛", "英甲": "英格兰甲级联赛", "英乙": "英格兰乙级联赛",
+    "德甲": "德国超级联赛", "德乙": "德国乙级联赛",
+    "西甲": "西班牙超级联赛", "西乙": "西班牙乙级联赛",
+    "意甲": "意大利超级联赛", "意乙": "意大利乙级联赛",
+    "法甲": "法国超级联赛", "法乙": "法国乙级联赛",
+    "葡超": "葡萄牙超级联赛",
+    "苏超": "苏格兰超级联赛", "苏冠": "苏格兰冠军联赛",
+    "挪超": "挪威超级联赛",
+    "比甲": "比利时超级联赛",
+    "土超": "土耳其超级联赛",
+    "希腊超": "希腊超级联赛",
+    "以超": "以色列超级联赛",
+}
+
 @mcp.tool()
 def get_league_factor(league_name: str) -> dict:
-    """查询联赛量化因子(基于15.9万场实测)。支持中英文模糊匹配。"""
-    # Try exact match
+    """查询联赛量化因子(基于15.9万场实测)。支持中英文模糊匹配。
+    
+    支持的简写: 英超/德甲/西甲/意甲/法甲/葡超/苏超/挪超/比甲...
+    """
+    # Try exact match first
     lf = LEAGUE_FACTORS.get(league_name)
+    matched_name = league_name
+    if not lf:
+        # Try Chinese short name → full name
+        full_name = LEAGUE_NAME_MAP.get(league_name, league_name)
+        lf = LEAGUE_FACTORS.get(full_name)
+        if lf:
+            matched_name = full_name
     if not lf:
         # Fuzzy match
         for k, v in LEAGUE_FACTORS.items():
             if league_name in k or k in league_name:
                 lf = v
-                league_name = k
+                matched_name = k
                 break
-    return {"league": league_name, "factors": lf, 
+    return {"league": matched_name, "factors": lf, 
             "source": f"{lf.get('sample_size',0)}场实测" if lf else "数据不足",
             "available_leagues": list(LEAGUE_FACTORS.keys())}
 
