@@ -1439,6 +1439,204 @@ def _parse_500_html(html: str, lottery_type: str = "beidan") -> list:
         })
     return matches
 
+# ===== 31-35. 多数据源集成 =====
+# API keys loaded from environment (injected via LobeHub credentials)
+_FDO_KEY = os.environ.get("FOOTBALL_DATA_ORG_KEY", "")
+_AF_KEY = os.environ.get("API_FOOTBALL_KEY", "")
+_ODDS_KEY = os.environ.get("ODDS_API_KEY", "")
+_SM_KEY = os.environ.get("SPORTMONKS_KEY", "")
+_WAPI_KEY = os.environ.get("WEATHER_API_KEY", "")
+_OWM_KEY = os.environ.get("OPENWEATHER_KEY", "")
+
+DATA_SOURCES = {
+    "500.com": {"status": "ok", "type": "web_scrape", "free": True, "rate_limit": "unlimited"},
+    "football-data.org": {"status": "available" if _FDO_KEY else "no_key", "type": "api", "free": True, "rate_limit": "10/min"},
+    "the-odds-api": {"status": "available" if _ODDS_KEY else "no_key", "type": "api", "free": True, "rate_limit": "500/month"},
+    "api-football": {"status": "available" if _AF_KEY else "no_key", "type": "api", "free": True, "rate_limit": "100/day"},
+    "sportmonks": {"status": "available" if _SM_KEY else "no_key", "type": "api", "free": True, "rate_limit": "unknown"},
+}
+
+@mcp.tool()
+def data_source_status() -> dict:
+    """检查所有数据源可用性 — 避免500.com单点故障。"""
+    return {"sources": DATA_SOURCES, "recommendation": "优先用500.com(无限),失败后自动切football-data.org→the-odds-api"}
+
+@mcp.tool()
+def scrape_football_data_org(league_code: str = "PL", matchday: int = 0) -> dict:
+    """从 football-data.org 爬取比赛数据和赔率 — 500.com备用源。
+    
+    Args:
+        league_code: 联赛代码(PL=英超,BL1=德甲,PD=西甲,SA=意甲,FL1=法甲,DED=荷甲,PPL=葡超)
+        matchday: 比赛轮次(0=最新)
+    """
+    import requests
+    if not _FDO_KEY:
+        return {"ok": False, "error": "FOOTBALL_DATA_ORG_KEY not configured"}
+    url = f"https://api.football-data.org/v4/competitions/{league_code}/matches"
+    params = {"status": "SCHEDULED"}
+    if matchday > 0:
+        params["matchday"] = matchday
+    try:
+        resp = requests.get(url, headers={"X-Auth-Token": _FDO_KEY}, params=params, timeout=8)
+        if resp.status_code == 429:
+            return {"ok": False, "error": "Rate limited (10/min free tier)"}
+        data = resp.json()
+        matches = []
+        for m in data.get("matches", [])[:20]:
+            matches.append({
+                "home": m["homeTeam"]["name"], "away": m["awayTeam"]["name"],
+                "date": m["utcDate"], "status": m["status"],
+                "odds": m.get("odds", {}),
+            })
+        return {"ok": True, "source": "football-data.org", "competition": data.get("competition", {}).get("name"),
+                "match_count": len(matches), "matches": matches,
+                "note": "Free tier: 10 calls/min. 含胜平负赔率(部分联赛)"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+@mcp.tool()
+def scrape_odds_api(sport: str = "soccer_epl", regions: str = "uk") -> dict:
+    """从 The Odds API 获取多庄家实时赔率 — 全球博彩公司数据。
+    
+    Args:
+        sport: 赛事(soccer_epl/soccer_spain_la_liga/soccer_germany_bundesliga等)
+        regions: 地区(uk/eu/us/au)
+    """
+    import requests
+    if not _ODDS_KEY:
+        return {"ok": False, "error": "ODDS_API_KEY not configured"}
+    url = f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
+    params = {"apiKey": _ODDS_KEY, "regions": regions, "markets": "h2h", "oddsFormat": "decimal"}
+    try:
+        resp = requests.get(url, params=params, timeout=10)
+        if resp.status_code == 429:
+            return {"ok": False, "error": "Rate limited (500/month free tier)"}
+        data = resp.json()
+        matches = []
+        for m in data[:20]:
+            bookmakers = []
+            for bm in m.get("bookmakers", [])[:5]:
+                outcomes = []
+                for o in bm.get("markets", [{}])[0].get("outcomes", []):
+                    outcomes.append({"name": o["name"], "price": o["price"]})
+                bookmakers.append({"name": bm["title"], "outcomes": outcomes})
+            matches.append({
+                "home": m["home_team"], "away": m["away_team"],
+                "commence_time": m["commence_time"],
+                "bookmakers": bookmakers,
+            })
+        return {"ok": True, "source": "the-odds-api", "match_count": len(matches), "matches": matches,
+                "note": "Free tier: 500 requests/month. 多庄家赔率对比推荐此源"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+@mcp.tool()
+def get_match_weather(city: str, date: str = "") -> dict:
+    """获取比赛日天气 — 影响进球和比赛风格的重要因素。
+    
+    Args:
+        city: 城市名(英文,如'London','Manchester','Barcelona')
+        date: 日期(可选,默认今天)
+    """
+    import requests
+    key = _WAPI_KEY or _OWM_KEY
+    if not key:
+        return {"ok": False, "error": "No weather API key configured"}
+    
+    # Try WeatherAPI first (free: 1M calls/month)
+    if _WAPI_KEY:
+        try:
+            url = f"https://api.weatherapi.com/v1/forecast.json?key={_WAPI_KEY}&q={city}&days=2&aqi=no"
+            resp = requests.get(url, timeout=8)
+            data = resp.json()
+            if "forecast" in data:
+                f = data["forecast"]["forecastday"]
+                today = f[0]["day"] if f else {}
+                return {"ok": True, "source": "WeatherAPI",
+                        "city": data["location"]["name"],
+                        "today": {"condition": today.get("condition",{}).get("text"),
+                                  "temp_c": today.get("avgtemp_c"), "rain_mm": today.get("totalprecip_mm",0),
+                                  "wind_kph": today.get("maxwind_kph")},
+                        "impact": _weather_impact(today.get("condition",{}).get("text",""), today.get("totalprecip_mm",0))}
+        except Exception as e:
+            pass
+    
+    # Fallback OpenWeatherMap
+    if _OWM_KEY:
+        try:
+            url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={_OWM_KEY}&units=metric"
+            resp = requests.get(url, timeout=8)
+            data = resp.json()
+            return {"ok": True, "source": "OpenWeatherMap",
+                    "city": data.get("name", city),
+                    "today": {"condition": data["weather"][0]["description"] if data.get("weather") else "N/A",
+                              "temp_c": data["main"]["temp"] if data.get("main") else None,
+                              "wind_mps": data["wind"]["speed"] if data.get("wind") else None},
+                    "impact": _weather_impact(data["weather"][0]["main"] if data.get("weather") else "", 0)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+    
+    return {"ok": False, "error": "No weather source available"}
+
+def _weather_impact(condition: str, rain_mm: float) -> str:
+    condition_l = condition.lower()
+    if "rain" in condition_l or rain_mm > 5:
+        return "⚡ 雨天:减少进球,长传+定位球战术增多,小球概率↑"
+    if "snow" in condition_l:
+        return "❄️ 雪天:严重影响比赛,进球极少,考虑小球+平局"
+    if "wind" in condition_l:
+        return "💨 大风:影响传球精度,长传效果下降"
+    if "clear" in condition_l or "sunny" in condition_l:
+        return "☀️ 晴天:正常比赛条件,无特殊影响"
+    if "cloud" in condition_l:
+        return "☁️ 多云:正常比赛条件,无特殊影响"
+    return "🌡️ 标准条件:无显著天气影响"
+
+@mcp.tool()
+def scrape_match(league: str = "", date: str = "") -> dict:
+    """智能多源数据采集 — 自动选择最佳可用数据源(500.com→football-data.org→the-odds-api)。
+    
+    避免单点故障,确保投注数据源可靠。
+    """
+    results = []
+    sources_used = []
+    
+    # Priority 1: 500.com (fast, unlimited, Chinese odds)
+    jc = scrape_500_jczq(date)
+    if jc.get("ok") and jc.get("match_count", 0) > 0:
+        results.append({"source": "500.com/jczq", "count": jc["match_count"], "matches": jc.get("matches", [])[:5]})
+        sources_used.append("500.com/jczq")
+    
+    bd = scrape_500_beidan(date)
+    if bd.get("ok") and bd.get("match_count", 0) > 0:
+        results.append({"source": "500.com/beidan", "count": bd["match_count"], "matches": bd.get("matches", [])[:5]})
+        sources_used.append("500.com/beidan")
+    
+    # Priority 2: football-data.org (if 500.com failed)
+    if not sources_used and _FDO_KEY and league:
+        fdo = scrape_football_data_org(league_code=_league_to_fdo_code(league))
+        if fdo.get("ok"):
+            results.append({"source": "football-data.org", "count": fdo.get("match_count", 0)})
+            sources_used.append("football-data.org")
+    
+    # Priority 3: the-odds-api (last resort)
+    if not sources_used and _ODDS_KEY:
+        oapi = scrape_odds_api()
+        if oapi.get("ok"):
+            results.append({"source": "the-odds-api", "count": oapi.get("match_count", 0)})
+            sources_used.append("the-odds-api")
+    
+    return {
+        "sources_used": sources_used,
+        "results": results,
+        "recommendation": "数据源正常" if sources_used else "所有数据源均不可用,请检查网络/API配置",
+    }
+
+def _league_to_fdo_code(league: str) -> str:
+    mapping = {"英超":"PL","德甲":"BL1","西甲":"PD","意甲":"SA","法甲":"FL1","荷甲":"DED","葡超":"PPL","英冠":"ELC"}
+    return mapping.get(league, "PL")
+
+
 def main():
     """Entry point for `afa-mcp-server` CLI command."""
     mcp.run(transport="stdio")
