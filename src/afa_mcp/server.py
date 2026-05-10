@@ -866,12 +866,12 @@ def _parse_jczq_html(html: str) -> list:
         r'\[?(?:周[一二三四五六日]|星期[一二三四五六日])\s*(\d{3})\]?\s*'  # match number
         r'\[?([^\]]+?)\]?\s*'  # league
         r'(\d{2}-\d{2}\s+\d{2}:\d{2})\s*'  # time
-        r'(?:\[\d+\]\s*)?'  # optional home rank
-        r'\[?([^\]\[]+?)\]?\s*'  # home team
-        r'_?VS_?\s*'  # VS separator
-        r'(?:\[\d+\]\s*)?'  # optional away rank
-        r'\[?([^\]\[]+?)\]?\s*'  # away team
-        r'(?:\[\d+\]\s*)?',  # optional away rank
+        r'(?:\[\d+\])?\s*'  # optional home rank
+        r'([^\[V_]+?)\s*'  # home team (stop before [, V, _)
+        r'(?:_?VS_?|_vs_)\s*'  # VS separator
+        r'(?:\[\d+\])?\s*'  # optional away rank
+        r'([^\[\d]+?)\s*'  # away team (stop before [ or digit)
+        r'(?:\[\d+\]\s*)?',  # optional away rank bracket
         re.DOTALL
     )
     
@@ -903,13 +903,26 @@ def _parse_jczq_html(html: str) -> list:
             if len(sp_vals) >= 3:
                 sp_h, sp_d, sp_a = sp_vals[0], sp_vals[1], sp_vals[2]
         
-        # Check status
+        # Check status - look for score AFTER SP values (not time strings)
         status = "upcoming"
         score = None
-        score_match = re.search(r'(\d+:\d+)', rest)
-        if score_match:
-            score = score_match.group(1)
-            status = "finished"
+        # Find all colon-separated patterns in rest
+        colon_matches = re.findall(r'(\d+:\d+)', rest)
+        for cm in colon_matches:
+            # Skip time-like patterns (e.g., "00:50" with leading zeros)
+            parts = cm.split(':')
+            if int(parts[0]) > 30 or int(parts[1]) > 30:
+                continue  # Not a valid football score
+            if int(parts[0]) < 10 and int(parts[1]) < 10:
+                # Could be time or score - prefer ones after SP values
+                pos = rest.find(cm)
+                sp_pos = max([rest.rfind(s) for s in [sp_h, sp_d, sp_a] if s != "0"] + [0])
+                if pos > sp_pos or (score is None and int(parts[0]) <= 7):
+                    score = cm
+                    status = "finished"
+            elif int(parts[0]) <= 7 and int(parts[1]) <= 7:
+                score = cm
+                status = "finished"
         
         # Clean up league name (remove trailing "联赛" if it's a proper name)
         league_clean = league
