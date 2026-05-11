@@ -148,6 +148,10 @@ def dixon_coles_predict(home_attack: float, home_defense: float,
 def kelly_analyze(true_probability: float, odds: float,
                   bankroll: float = 10000, lottery_type: str = "jingcai") -> dict:
     """Kelly公式投注分析。自动区分竞彩(K>0.05)和北单(K>0.08)正期望阈值。"""
+    # Robust type guard for MCP sandbox compatibility
+    true_probability = float(str(true_probability))
+    odds = float(str(odds))
+    bankroll = float(str(bankroll))
     if odds <= 1.0: return {"error": "赔率必须>1.0"}
     implied = 1.0 / odds; edge = true_probability - implied
     kf = (true_probability * odds - 1) / (odds - 1) if edge > 0 else 0.0
@@ -161,6 +165,7 @@ def kelly_analyze(true_probability: float, odds: float,
 @mcp.tool()
 def odds_implied_probabilities(odds_home: float, odds_draw: float, odds_away: float) -> dict:
     """从欧赔计算市场隐含概率和庄家利润率。"""
+    odds_home = float(str(odds_home)); odds_draw = float(str(odds_draw)); odds_away = float(str(odds_away))
     inv = [1.0/odds_home, 1.0/odds_draw, 1.0/odds_away]; total = sum(inv)
     return {"implied_home": round(inv[0]/total,4), "implied_draw": round(inv[1]/total,4),
             "implied_away": round(inv[2]/total,4), "market_margin": round(total-1,4),
