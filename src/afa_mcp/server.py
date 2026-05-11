@@ -2292,6 +2292,83 @@ def odds_movement_track(source: str = "500.com", date: str = "") -> dict:
         "note": "盘口异常变动是重要市场信号。赔率下降=真实看好,上升=资金撤离"
     }
 
+
+# ===== FULL REPORT: 一站式全能分析 =====
+@mcp.tool()
+def full_report(lottery_type: str = "all", max_matches: int = 5, bankroll: float = 200) -> dict:
+    """一站式全能分析报告。竞彩+北单每场全玩法(SPF/RQSPF/TG/HF/SXDS/WL)+串关+资金管理。"""
+    import datetime
+    report = {"time": datetime.datetime.now().isoformat(), "bankroll": bankroll, "sections": []}
+    all_picks = []
+    
+    if lottery_type in ("all", "jingcai"):
+        jc = scrape_500_jczq()
+        up = [m for m in (jc.get("matches",[]) if jc.get("ok") else []) if m.get("status")=="upcoming"][:max_matches]
+        jc_out = []
+        for m in up:
+            e = {"match": f"{m['home']} vs {m['away']}", "league": m.get("league",""), "time": m.get("time","")}
+            try: sp_h,sp_d,sp_a = float(m["sp_h"]),float(m["sp_d"]),float(m["sp_a"])
+            except: continue
+            try:
+                he_r = get_team_elo(m["home"])["results"]; ae_r = get_team_elo(m["away"])["results"]
+                he = he_r[0]["elo"] if he_r else 1500; ae = ae_r[0]["elo"] if ae_r else 1500
+            except: he, ae = 1500, 1500
+            ep = 1.0/(1.0+10**((ae-he-65)/400))
+            imp = odds_implied_probabilities(sp_h,sp_d,sp_a)
+            kh = kelly_analyze(ep, sp_h, "jingcai")
+            lf = get_league_factor(m.get("league",""))
+            lt = (lf.get("factors",{}) or {}).get("avg_goals", 2.5) if lf.get("factors") else 2.5
+            sm = score_probability_matrix(lt*0.55, lt*0.45)
+            gd = sm.get("goals_dist",{})
+            o25 = sum(float(gd.get(str(i),0)) for i in range(3,17))
+            hf = half_full_analyzer(ep, 0.22, 1-ep-0.22)
+            
+            e["plays"] = {}
+            e["plays"]["SPF"] = {"odds":[sp_h,sp_d,sp_a],"elo_win":round(ep,3),"kelly":kh.get("kelly_fraction",0),
+                "pick":"主胜" if kh.get("recommended") else ("客胜" if ep<0.35 else "观望")}
+            e["plays"]["TG"] = {"avg_goals":round(lt,1),"over25":round(o25,3),
+                "pick":"大球" if o25>0.5 else "小球","top":[sorted([(k,round(float(v),3)) for k,v in gd.items()],key=lambda x:-x[1])[:3]]}
+            e["plays"]["HF"] = {"best":hf.get("best_pick",""),"prob":hf.get("best_prob",0)}
+            
+            if kh.get("recommended"):
+                all_picks.append({"name":e["match"],"kelly_h":kh["kelly_fraction"],"sp_h":sp_h,"prob_h":ep})
+            jc_out.append(e)
+        
+        par = parlay_optimizer(all_picks,"jingcai",bankroll) if len(all_picks)>=2 else {"valid_count":len(all_picks)}
+        report["sections"].append({"lottery":"竞彩足球","matches":jc_out,"parlay":par})
+    
+    if lottery_type in ("all", "beidan"):
+        bd = scrape_500_beidan()
+        up_bd = [m for m in (bd.get("matches",[]) if bd.get("ok") else []) if m.get("status")=="upcoming"][:max_matches]
+        bd_out = []
+        for m in up_bd:
+            e = {"match": f"{m['home']} vs {m['away']}", "league": m.get("league",""), "hc": m.get("handicap","0")}
+            try: sp_h,sp_d,sp_a = float(m["sp_h"]),float(m["sp_d"]),float(m["sp_a"])
+            except: continue
+            try:
+                he_r = get_team_elo(m["home"])["results"]; ae_r = get_team_elo(m["away"])["results"]
+                he = he_r[0]["elo"] if he_r else 1500; ae = ae_r[0]["elo"] if ae_r else 1500
+            except: he, ae = 1500, 1500
+            ep = 1.0/(1.0+10**((ae-he-65)/400))
+            lf = get_league_factor(m.get("league",""))
+            lt = (lf.get("factors",{}) or {}).get("avg_goals", 2.5) if lf.get("factors") else 2.5
+            sx = beidan_sxds_analyzer(lt, m.get("league",""))
+            hf = half_full_analyzer(ep, 0.22, 1-ep-0.22, "beidan")
+            
+            e["plays"] = {}
+            e["plays"]["SPF"] = {"odds":[sp_h,sp_d,sp_a],"hc":m.get("handicap","0"),"elo_win":round(ep,3),
+                "pick":"主胜" if ep>0.55 else ("客胜" if ep<0.45 else "平局关注")}
+            e["plays"]["SXDS"] = {"best":sx.get("best",""),"probs":sx.get("probs",{})}
+            e["plays"]["HF"] = {"best":hf.get("best_pick",""),"prob":hf.get("best_prob",0)}
+            if abs(ep-0.5)>0.15:
+                e["plays"]["WL"] = {"pick":"主胜" if ep>0.5 else "客胜","note":"胜负过关,最多15关"}
+            bd_out.append(e)
+        
+        report["sections"].append({"lottery":"北京单场","matches":bd_out,"note":"SP浮动,赛后才确定"})
+    
+    report["sections"].append({"section":"资金管理","data":bankroll_calculator(bankroll,"medium",3)})
+    return report
+
 def _parse_jczq_html(html: str) -> list:
     """解析竞彩足球500.com HTML — 基于实际页面文本内容提取。
     
