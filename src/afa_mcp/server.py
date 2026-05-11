@@ -6,6 +6,21 @@ from mcp.server.fastmcp import FastMCP
 # Load embedded data
 DATA_DIR = Path(__file__).parent / "data" if (Path(__file__).parent / "data").exists() else Path(os.environ.get("AFA_DATA_DIR", "."))
 
+# Load data files (fallback to embedded if JSON not available)
+def _load_json_data(name, fallback):
+    p = DATA_DIR / name
+    if p.exists():
+        return json.loads(open(p).read())
+    return fallback
+
+ELO_NAME_MAP_JSON = _load_json_data("elo_name_map.json", {})
+if ELO_NAME_MAP_JSON: ELO_NAME_MAP = ELO_NAME_MAP_JSON
+
+LEAGUE_NAME_MAP_JSON = _load_json_data("league_name_map.json", {})
+if LEAGUE_NAME_MAP_JSON: LEAGUE_NAME_MAP = LEAGUE_NAME_MAP_JSON
+_LEAGUE_HINTS = _load_json_data("league_hints.json", {})
+
+
 def _load_json(name: str) -> dict:
     p = DATA_DIR / name
     return json.loads(open(p).read()) if p.exists() else {}
@@ -1131,20 +1146,7 @@ def match_narrative_analyzer(home_team: str, away_team: str, home_rank: int = 0,
             narratives.append(f"📊 排名悬殊(gap={gap}) — 强弱分明但需防冷")
     
     # League context
-    league_hints = {
-        '英超': '快节奏身体对抗,下半场进球多',
-        '德甲': '高位压迫大比分,屠杀型比赛多',
-        '意甲': '防守纪律强,小球平局多,1-0常见',
-        '西甲': '技术流传控为主,主胜率48.8%,上半场节奏偏慢',
-        '法甲': '竞争相对均衡,巴黎统治力强,中下游差距小',
-        '法乙': '平局率31%,法乙是平局之王',
-        '挪超': '大球联赛,场均3.17球,主场优势大',
-        '意乙': '平局率31%,意乙小球为主,防守反击',
-        '荷甲': '攻势足球,场均3.08球,青年才俊多',
-        '日职': '技术流低进球(2.35球),主场优势弱',
-        '韩职': '身体对抗强,平局率低,分胜负能力强',
-        '澳超': '大球联赛(3.05球),防守松散,娱乐性强',
-    }
+    league_hints = _LEAGUE_HINTS if _LEAGUE_HINTS else {}
     
     return {
         "match": f"{home_team} vs {away_team}",
