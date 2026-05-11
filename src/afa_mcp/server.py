@@ -50,7 +50,7 @@ def _bd(): return _rules().get("beidan", {})
 
 def _rate(lt="jingcai"):
     """返奖率:竞彩71%(固定赔率已含),北单65%"""
-    return 1.0 if lt == "jingcai" else 0.65
+    return 1.0 if lt == "jingcai" else _rules().get("beidan", {}).get("payout_rate", 0.65)
 
 def _kelly_threshold(lt="jingcai"):
     """Kelly阈值"""
@@ -59,10 +59,10 @@ def _kelly_threshold(lt="jingcai"):
 def _prize_cap(level):
     """奖金封顶"""
     caps = _jc().get("prize_cap", {})
-    if level <= 1: return caps.get("单场", 100000)
-    if level <= 3: return caps.get("2-3关", 200000)
-    if level <= 5: return caps.get("4-5关", 500000)
-    return caps.get("6关及以上", 1000000)
+    if level <= 1: return caps.get("单场", _jc().get("prize_cap", {}).get("单场", 100000))
+    if level <= 3: return caps.get("2-3关", _jc().get("prize_cap", {}).get("2-3关", 200000))
+    if level <= 5: return caps.get("4-5关", _jc().get("prize_cap", {}).get("4-5关", 500000))
+    return caps.get("6关及以上", _jc().get("prize_cap", {}).get("6关及以上", 1000000))
 
 def _max_parlay(play, lt="jingcai"):
     """查询玩法最高过关数"""
@@ -89,6 +89,16 @@ def _free_parlay_max(play, lt="jingcai"):
                 v = info.get("free_parlay_max", info.get("max_parlay", 8))
                 return v if isinstance(v, int) else 8
     return min(vals) if vals else 8
+
+# ===== 共享计算函数 =====
+def _elo_prob(he, ae):
+    """ELO胜率计算 — 统一入口,消除6处重复"""
+    return _elo_prob(he, ae)
+
+def _kelly_edge(true_prob, odds, lt="jingcai"):
+    """Kelly期望值计算"""
+    return true_prob * odds * _rate(lt)
+
 
 # ===== 替换原有LOTTERY_RULES =====
 LOTTERY_RULES = _load_rules()
@@ -170,7 +180,7 @@ def elo_calculate(home_elo: float, away_elo: float,
                   home_goals: int = None, away_goals: int = None,
                   k_factor: int = 20) -> dict:
     """ELO评分计算与更新。65分主场优势内置于公式中。"""
-    exp_home = 1.0 / (1.0 + 10.0 ** ((away_elo - home_elo - 65.0) / 400.0))
+    exp_home = _elo_prob(home_elo, away_elo)
     r = {"expected_home_win": round(exp_home, 4), "expected_away_win": round(1-exp_home, 4)}
     if home_goals is not None and away_goals is not None:
         actual = (1.0, 0.0) if home_goals > away_goals else ((0.5, 0.5) if home_goals == away_goals else (0.0, 1.0))
@@ -229,8 +239,8 @@ def kelly_analyze(true_probability: float, odds: float,
     if odds <= 1.0: return {"error": "赔率必须>1.0"}
     implied = 1.0 / odds; edge = true_probability - implied
     kf = (true_probability * odds - 1) / (odds - 1) if edge > 0 else 0.0
-    ev = true_probability * odds * (0.65 if lottery_type.lower() == "beidan" else 1.0)
-    threshold = 0.08 if lottery_type.lower() == "beidan" else 0.05
+    ev = _kelly_edge(true_probability, odds, lottery_type.lower())
+    threshold = _kelly_threshold(lottery_type.lower())
     return {"implied_prob": round(implied,4), "edge": round(edge,4), "ev": round(ev,4),
             "kelly_fraction": round(kf,6), "quarter_kelly": round(kf*0.25*bankroll,2),
             "recommended": kf > threshold, "lottery_type": lottery_type, "threshold": threshold}
@@ -272,7 +282,7 @@ def think_match(home_team: str, away_team: str,
     cal = odds_calibration_lookup(odds_home) if odds_home > 0 else {"actual_win_rate": 0.5, "advice": "N/A"}
     lf = get_league_factor(league) if league else {"factors": {"avg_goals": 2.5}}
     imp = odds_implied_probabilities(odds_home, odds_draw, odds_away)
-    elo_prob = 1.0 / (1.0 + 10.0 ** ((away_elo - home_elo - 65.0) / 400.0))
+    elo_prob = _elo_prob(home_elo, away_elo)
     kelly_r = kelly_analyze(elo_prob, odds_home, lottery_type="jingcai")
     
     # Layer 2: Score matrix — ELO-aware + league-adaptive λ split
@@ -1002,7 +1012,7 @@ def batch_analyze(matches: list, league: str = "", lottery_type: str = "jingcai"
             away_elo = away_elo_data['results'][0]['elo'] if away_elo_data['results'] else 1500
             
             # ELO probability
-            elo_prob = 1.0 / (1.0 + 10.0 ** ((away_elo - home_elo - 65.0) / 400.0))
+            elo_prob = _elo_prob(home_elo, away_elo)
             
             # Kelly
             kelly_r = kelly_analyze(elo_prob, sp_h, lottery_type=lottery_type)
@@ -1015,7 +1025,7 @@ def batch_analyze(matches: list, league: str = "", lottery_type: str = "jingcai"
             factors = lf.get('factors', {})
             lam_total = factors.get('avg_goals', 2.5)
             hwr = factors.get('home_win', 0.42)
-            elo_prob = 1.0 / (1.0 + 10.0 ** ((away_elo - home_elo - 65.0) / 400.0))
+            elo_prob = _elo_prob(home_elo, away_elo)
             league_ratio = 0.5 + (hwr - 0.40) * 0.5
             elo_ratio = 0.5 + (elo_prob - 0.50) * 0.6
             home_ratio = 0.4 * max(0.45, min(0.55, league_ratio)) + 0.6 * max(0.35, min(0.65, elo_ratio))
@@ -2036,7 +2046,7 @@ def real_backtest(kelly_min: float = 0.05, max_odds: float = 3.0, min_matches: i
         kf = max(0, (actual_wr * home_odds - 1) / (home_odds - 1)) if home_odds > 1 else 0
         if kf < kelly_min: continue
         
-        stake = min(100, bank * kf * 0.25)
+        stake = min(flat_stake, bank * kf * 0.25)
         if stake < 2: continue
         
         result = m.get("result","")
@@ -2169,7 +2179,7 @@ def ml_predict(home_team: str, away_team: str, league: str = "") -> dict:
     except:
         he, ae = 1500, 1500
     
-    elo_prob = 1.0 / (1.0 + 10.0 ** ((ae - he - 65.0) / 400.0))
+    elo_prob = _elo_prob(he, ae)
     
     # Momentum factor
     try:
@@ -2367,7 +2377,7 @@ def full_report(lottery_type: str = "all", max_matches: int = 5, bankroll: float
         except: return 1500.0
     
     def _elo_prob(he, ae):
-        return 1.0/(1.0+10.0**((ae-he-65.0)/400.0))
+        return _elo_prob(he, ae)
     
     # ═══════ 竞彩足球 ═══════
     if lottery_type in ("all","jingcai"):
