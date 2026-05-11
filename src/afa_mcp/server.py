@@ -2089,14 +2089,14 @@ def real_backtest(kelly_min: float = 0.05, max_odds: float = 3.0, min_matches: i
     """真实历史回测 — 用15.9万场赛果+多庄家赔率验证策略。非随机模拟,每笔都有真实记录。
     """
     import math as _math
-    data = {"matches": HIST.all()}
-    if not data["matches"]:
+    matches = HIST.all()
+    if not matches:
         return {"error": "历史数据文件未找到"}
     
     bank = 10000; bets = wins = 0; curve = [bank]; max_dd = 0
     rate = _rate("jingcai")  # 竞彩返奖(70%)
     
-    for m in data["matches"]:
+    for m in matches:
         odds_data = m.get("three_way_odds", {}).get("closing", {})
         b365 = odds_data.get("Bet365", odds_data.get("WilliamHill", {}))
         if not b365: continue
