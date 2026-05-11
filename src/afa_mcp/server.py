@@ -2320,7 +2320,7 @@ def full_report(lottery_type: str = "all", max_matches: int = 5, bankroll: float
             lt = (lf.get("factors",{}) or {}).get("avg_goals", 2.5) if lf.get("factors") else 2.5
             sm = score_probability_matrix(lt*0.55, lt*0.45)
             gd = sm.get("goals_dist",{})
-            o25 = sum(float(gd.get(str(i),0)) for i in range(3,17))
+            o25 = sum(float(gd.get(str(i),"0") or 0) for i in range(3,17))
             hf = half_full_analyzer(ep, 0.22, 1-ep-0.22)
             
             e["plays"] = {}
