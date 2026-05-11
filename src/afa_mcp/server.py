@@ -2027,10 +2027,8 @@ def value_scanner() -> dict:
         sp_a = float(m.get("sp_a", 99))
         if sp_h < 1.10 or sp_h > 6.0: continue
         
-        imp = odds_implied_probabilities(sp_h, sp_d, sp_a)
         cal = odds_calibration_lookup(sp_h)
-        edge = cal["actual_win_rate"] - imp["implied_home"]
-        kelly_r = kelly_analyze(cal["actual_win_rate"], sp_h, "jingcai")
+        kelly_r = kelly_analyze(float(cal["actual_win_rate"]), float(sp_h), "jingcai")
         
         if kelly_r.get("recommended"):
             opportunities.append({
@@ -2049,7 +2047,7 @@ def value_scanner() -> dict:
         sp_h = float(m.get("sp_h", 99))
         if sp_h < 1.10 or sp_h > 6.0: continue
         cal = odds_calibration_lookup(sp_h)
-        kelly_r = kelly_analyze(cal["actual_win_rate"], sp_h, "beidan")
+        kelly_r = kelly_analyze(float(cal["actual_win_rate"]), float(sp_h), "beidan")
         
         if kelly_r.get("recommended"):
             opportunities.append({
