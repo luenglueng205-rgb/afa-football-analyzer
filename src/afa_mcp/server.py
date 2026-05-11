@@ -1890,8 +1890,10 @@ def form_analyzer(team: str, matches_count: int = 10) -> dict:
     返回:胜率/进球趋势/对手强度加权/momentum score(-100~+100)
     """
     recent = HIST.team_recent(team, matches_count) if HIST.count() > 0 else []
+    if HIST.count() == 0:
+        return {"team": team, "note": "历史数据文件未加载。请将INTEGRATED_COMPLETE_DATA.json.zip放入data/目录,然后同步MCP"}
     if not recent:
-        return {"team": team, "note": "历史数据中未找到该队,请检查英文名(如 Bayern Munich)"}
+        return {"team": team, "note": f"历史数据中未找到'{team}',请检查英文名(如Bayern Munich)"}
     
     wins = draws = losses = 0
     goals_for = goals_against = 0

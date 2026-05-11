@@ -9,3 +9,4 @@ dist/
 *.zip
 configs/.env
 configs/.env
+data/INTEGRATED_COMPLETE_DATA.json.zip
