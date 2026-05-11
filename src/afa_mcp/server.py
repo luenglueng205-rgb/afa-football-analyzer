@@ -28,6 +28,15 @@ if not LEAGUE_FACTORS:
 
 mcp = FastMCP("afa-football-analyzer")
 
+# MCP sandbox-safe float conversion — handles str/int/float/list edge cases
+def _safe_float(v, default=0.0):
+    if v is None: return default
+    if isinstance(v, (int, float)): return float(v)
+    if isinstance(v, (list, tuple)): v = v[0] if len(v) > 0 else default
+    try: return float(str(v).strip())
+    except: return default
+
+
 # ===== 工具函数 =====
 def _banker_round(value: float, decimals: int = 2) -> float:
     """银行家舍入(四舍六入五成双) — 官方彩票奖金计算标准"""
@@ -149,8 +158,8 @@ def kelly_analyze(true_probability: float, odds: float,
                   bankroll: float = 10000, lottery_type: str = "jingcai") -> dict:
     """Kelly公式投注分析。自动区分竞彩(K>0.05)和北单(K>0.08)正期望阈值。"""
     # Robust type guard for MCP sandbox compatibility (numeric params only)
-    true_probability = float(str(true_probability))
-    odds = float(str(odds))
+    true_probability = _safe_float(true_probability)
+    odds = _safe_float(odds)
     if odds <= 1.0: return {"error": "赔率必须>1.0"}
     implied = 1.0 / odds; edge = true_probability - implied
     kf = (true_probability * odds - 1) / (odds - 1) if edge > 0 else 0.0
@@ -164,7 +173,7 @@ def kelly_analyze(true_probability: float, odds: float,
 @mcp.tool()
 def odds_implied_probabilities(odds_home: float, odds_draw: float, odds_away: float) -> dict:
     """从欧赔计算市场隐含概率和庄家利润率。"""
-    odds_home = float(str(odds_home)); odds_draw = float(str(odds_draw)); odds_away = float(str(odds_away))
+    odds_home = _safe_float(odds_home); odds_draw = _safe_float(odds_draw); odds_away = _safe_float(odds_away)
     inv = [1.0/odds_home, 1.0/odds_draw, 1.0/odds_away]; total = sum(inv)
     return {"implied_home": round(inv[0]/total,4), "implied_draw": round(inv[1]/total,4),
             "implied_away": round(inv[2]/total,4), "market_margin": round(total-1,4),
@@ -2363,7 +2372,7 @@ def full_report(lottery_type: str = "all", max_matches: int = 5, bankroll: float
                 he_r = get_team_elo(str(m["home"]))["results"]; ae_r = get_team_elo(str(m["away"]))["results"]
                 he = float(he_r[0]["elo"]) if he_r else 1500.0; ae = float(ae_r[0]["elo"]) if ae_r else 1500.0
                 ep = 1.0/(1.0+10.0**((ae-he-65.0)/400.0))
-                imp = {"implied_home":0.5,"implied_draw":0.25,"implied_away":0.25}
+                imp = odds_implied_probabilities(sp_h, sp_d, sp_a)
                 kh = kelly_analyze(float(ep), sp_h, "jingcai")
                 e["spf"] = {"odds":[sp_h,sp_d,sp_a],"elo":round(ep,3),"implied":round(float(imp["implied_home"]),3),"kelly":round(float(kh.get("kelly_fraction",0)),4),"pick":"主胜" if kh.get("recommended") else ("客胜" if ep<0.35 else "观望")}
                 if kh.get("recommended"): picks.append({"name":e["match"],"kelly_h":kh["kelly_fraction"],"sp_h":sp_h,"prob_h":ep})
