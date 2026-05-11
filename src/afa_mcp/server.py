@@ -1631,12 +1631,9 @@ def backtest(matches: int = 100, min_kelly: float = 0.05, league_filter: str = "
         implied = 1.0 / odds if odds > 0 else 0.5
         edge = true_prob - implied
         
-        if edge < min_kelly:
-            continue  # No bet
-        
         kelly_frac = max(0, (true_prob * odds - 1) / (odds - 1)) if odds > 1 else 0
-        if kelly_frac <= 0:
-            continue
+        if kelly_frac < min_kelly:
+            continue  # Below Kelly threshold
         
         stake = min(flat_stake, bank * kelly_frac * 0.25)
         if stake < 2:
@@ -1908,7 +1905,7 @@ def multi_kelly_allocator(matches: list, bankroll: float = 10000, lottery_type: 
     for m in matches:
         prob = m.get("true_prob", m.get("prob_h", 0.5))
         odds = m.get("odds", m.get("sp_h", 2.0))
-        edge = prob * odds * rate - 1
+        edge = prob * odds - 1  # Pure edge (rate applied to payout separately)
         if edge > 0 and odds > 1:
             kf = (prob * odds - 1) / (odds - 1)
             allocations.append({
