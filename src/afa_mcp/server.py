@@ -2,6 +2,7 @@
 import json, os, math
 from pathlib import Path
 from mcp.server.fastmcp import FastMCP
+from .historical import HIST
 
 # Load embedded data
 DATA_DIR = Path(__file__).parent / "data" if (Path(__file__).parent / "data").exists() else Path(os.environ.get("AFA_DATA_DIR", "."))
@@ -1805,22 +1806,7 @@ def form_analyzer(team: str, matches_count: int = 10) -> dict:
     
     返回:胜率/进球趋势/对手强度加权/momentum score(-100~+100)
     """
-    import zipfile, json as _json
-    # Quick scan from historical data
-    recent = []
-    zip_path = "/Users/jand/Desktop/INTEGRATED_COMPLETE_DATA.json.zip"
-    try:
-        with zipfile.ZipFile(zip_path) as z:
-            with z.open('INTEGRATED_COMPLETE_DATA.json') as f:
-                data = _json.load(f)
-        team_matches = [m for m in data["matches"] 
-                        if (m.get("home_team","") == team or m.get("away_team","") == team)
-                        and m.get("home_goals") is not None]
-        team_matches.sort(key=lambda x: x.get("date",""), reverse=True)
-        recent = team_matches[:matches_count]
-    except Exception:
-        pass
-    
+    recent = HIST.team_recent(team, matches_count) if HIST.count() > 0 else []
     if not recent:
         return {"team": team, "note": "历史数据中未找到该队,请检查英文名(如 Bayern Munich)"}
     
@@ -2128,23 +2114,9 @@ def h2h_analyzer(home_team: str, away_team: str, last_n: int = 10) -> dict:
     """两队历史交锋分析 — 心理优势/比分模式/赔率偏差。
     基于15.9万场历史数据中的直接对话记录。
     """
-    import zipfile, json as _json
-    zp = "/Users/jand/Desktop/INTEGRATED_COMPLETE_DATA.json.zip"
-    try:
-        with zipfile.ZipFile(zp) as z:
-            with z.open('INTEGRATED_COMPLETE_DATA.json') as f:
-                data = _json.load(f)
-    except Exception:
+    if HIST.count() == 0:
         return {"error": "历史数据文件未找到"}
-    
-    h2h = []
-    for m in data["matches"]:
-        ht = m.get("home_team","")
-        at = m.get("away_team","")
-        if (ht == home_team and at == away_team) or (ht == away_team and at == home_team):
-            h2h.append(m)
-    h2h.sort(key=lambda x: x.get("date",""), reverse=True)
-    h2h = h2h[:last_n]
+    h2h = HIST.h2h(home_team, away_team, last_n)
     
     if not h2h:
         return {"home": home_team, "away": away_team, "h2h_matches": 0, "note": "历史数据中无直接交锋记录"}
