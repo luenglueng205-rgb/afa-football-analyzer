@@ -1420,7 +1420,6 @@ def multi_bookmaker_analyze(home_team: str, away_team: str,
         odds_sources: 庄家列表(默认全部)
         date: 可选日期过滤
     """
-    import zipfile
     sources = odds_sources or ["Bet365", "WilliamHill", "Ladbrokes", "Interwetten"]
     
     # This is a historical odds comparison — for live odds, use scrape_500_* tools
