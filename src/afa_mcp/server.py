@@ -463,7 +463,7 @@ def get_team_elo(team_name: str, league: str = "") -> dict:
     full_league = LEAGUE_NAME_MAP.get(league, league)
     if not matches and league:
         league_english_teams = LEAGUE_TEAM_MAP.get(full_league, LEAGUE_TEAM_MAP.get(league, [])) if isinstance(LEAGUE_TEAM_MAP, dict) else []
-        league_english_teams = LEAGUE_TEAM_MAP[league]
+        league_english_teams = LEAGUE_TEAM_MAP.get(league, [])
         # Try matching the Chinese name against English team names in this league
         for et in league_english_teams:
             if team_name.lower() in et.lower() or any(c in et.lower() for c in team_name.replace(' ','') if ord(c) > 127 or len(c) >= 2):
@@ -488,7 +488,7 @@ def get_team_elo(team_name: str, league: str = "") -> dict:
     if not matches:
         avg_elo = 1500.0
         if league and league in LEAGUE_TEAM_MAP:
-            elos = [ELO_DB.get(t, 1500) for t in LEAGUE_TEAM_MAP[league] if t in ELO_DB]
+            elos = [ELO_DB.get(t, 1500) for t in LEAGUE_TEAM_MAP.get(league, []) if t in ELO_DB]
             if elos: avg_elo = round(sum(elos)/len(elos), 1)
         return {"query": team_name, "results": [{"team": team_name, "elo": avg_elo, "note": f"无数据,使用{league or '默认'}均值{avg_elo}"}], "total": 0, "fallback": True}
     
