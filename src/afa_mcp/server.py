@@ -310,18 +310,40 @@ def think_match(home_team: str, away_team: str,
 # ===== 6. 联赛因子 =====
 # Chinese short name → JSON full name mapping (generated data uses full names)
 LEAGUE_NAME_MAP = {
+    # 五大联赛
     "英超": "英格兰超级联赛", "英冠": "英格兰冠军联赛", "英甲": "英格兰甲级联赛", "英乙": "英格兰乙级联赛",
     "德甲": "德国超级联赛", "德乙": "德国乙级联赛",
     "西甲": "西班牙超级联赛", "西乙": "西班牙乙级联赛",
     "意甲": "意大利超级联赛", "意乙": "意大利乙级联赛",
     "法甲": "法国超级联赛", "法乙": "法国乙级联赛",
-    "葡超": "葡萄牙超级联赛",
-    "苏超": "苏格兰超级联赛", "苏冠": "苏格兰冠军联赛",
-    "挪超": "挪威超级联赛",
-    "比甲": "比利时超级联赛",
+    # 二线联赛
+    "葡超": "葡萄牙超级联赛", "荷甲": "荷兰甲级联赛", "荷乙": "荷兰乙级联赛",
+    "苏超": "苏格兰超级联赛", "苏冠": "苏格兰冠军联赛", "苏甲": "苏格兰甲级联赛",
+    "比甲": "比利时超级联赛", "比乙": "比利时乙级联赛",
     "土超": "土耳其超级联赛",
-    "希腊超": "希腊超级联赛",
-    "以超": "以色列超级联赛",
+    "挪超": "挪威超级联赛", "挪甲": "挪威甲级联赛",
+    "瑞典超": "瑞典超级联赛", "瑞典甲": "瑞典甲级联赛",
+    "丹超": "丹麦超级联赛", "丹甲": "丹麦甲级联赛",
+    "芬超": "芬兰超级联赛", "芬甲": "芬兰甲级联赛",
+    "冰岛超": "冰岛超级联赛",
+    "波兰甲": "波兰甲级联赛",
+    # 东欧
+    "捷克甲": "捷克甲级联赛", "罗甲": "罗马尼亚甲级联赛",
+    "希腊超": "希腊超级联赛", "以超": "以色列超级联赛",
+    "奥甲": "奥地利甲级联赛", "奥乙": "奥地利乙级联赛",
+    "瑞士超": "瑞士超级联赛", "瑞士甲": "瑞士甲级联赛",
+    # 其他
+    "俄超": "俄罗斯超级联赛", "乌超": "乌克兰超级联赛",
+    "日职": "日本J1联赛", "J1联赛": "日本J1联赛", "J2联赛": "日本J2联赛",
+    "韩职": "韩国K1联赛", "K1联赛": "韩国K1联赛", "K2联赛": "韩国K2联赛",
+    "澳超": "澳大利亚A联赛",
+    "美职": "美国MLS", "美职足": "美国MLS",
+    "巴甲": "巴西甲级联赛", "巴西甲": "巴西甲级联赛", "巴西乙": "巴西乙级联赛",
+    "阿职联": "阿根廷甲级联赛",
+    "墨超": "墨西哥超级联赛",
+    "沙职": "沙特职业联赛", "沙特职业联赛": "沙特职业联赛",
+    # 500.com specific
+    "瑞超": "瑞典超级联赛", "爱超": "爱尔兰超级联赛", "爱甲": "爱尔兰甲级联赛",
 }
 
 @mcp.tool()
@@ -438,7 +460,9 @@ def get_team_elo(team_name: str, league: str = "") -> dict:
     matches = [(k, v) for k, v in ELO_DB.items() if search_name.lower() in k.lower()]
     
     # Strategy 2: League-context aware (if league is provided)
-    if not matches and league and league in LEAGUE_TEAM_MAP:
+    full_league = LEAGUE_NAME_MAP.get(league, league)
+    if not matches and league:
+        league_english_teams = LEAGUE_TEAM_MAP.get(full_league, LEAGUE_TEAM_MAP.get(league, []))
         league_english_teams = LEAGUE_TEAM_MAP[league]
         # Try matching the Chinese name against English team names in this league
         for et in league_english_teams:
