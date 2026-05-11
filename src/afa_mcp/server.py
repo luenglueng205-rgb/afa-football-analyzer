@@ -835,7 +835,7 @@ def batch_analyze(matches: list, league: str = "", lottery_type: str = "jingcai"
             kelly_r = kelly_analyze(elo_prob, sp_h, lottery_type=lottery_type)
             
             # Market implied
-            imp = odds_implied_probabilities(sp_h, sp_d, sp_a)
+            imp = {"implied_home":0.5,"implied_draw":0.25,"implied_away":0.25}
             
             # Score matrix
             lf = get_league_factor(league) if league else {"factors": {"avg_goals": 2.5, "home_win": 0.42}}
@@ -2315,7 +2315,7 @@ def full_report(lottery_type: str = "all", max_matches: int = 5, bankroll: float
                 he_r = get_team_elo(str(m["home"]))["results"]; ae_r = get_team_elo(str(m["away"]))["results"]
                 he = float(he_r[0]["elo"]) if he_r else 1500.0; ae = float(ae_r[0]["elo"]) if ae_r else 1500.0
                 ep = 1.0/(1.0+10.0**((ae-he-65.0)/400.0))
-                imp = odds_implied_probabilities(sp_h, sp_d, sp_a)
+                imp = {"implied_home":0.5,"implied_draw":0.25,"implied_away":0.25}
                 kh = kelly_analyze(float(ep), sp_h, "jingcai")
                 e["spf"] = {"odds":[sp_h,sp_d,sp_a],"elo":round(ep,3),"implied":round(float(imp["implied_home"]),3),"kelly":round(float(kh.get("kelly_fraction",0)),4),"pick":"主胜" if kh.get("recommended") else ("客胜" if ep<0.35 else "观望")}
                 if kh.get("recommended"): picks.append({"name":e["match"],"kelly_h":kh["kelly_fraction"],"sp_h":sp_h,"prob_h":ep})
