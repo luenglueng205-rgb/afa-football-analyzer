@@ -2410,56 +2410,154 @@ def odds_movement_track(source: str = "500.com", date: str = "") -> dict:
 # ===== FULL REPORT: 一站式全能分析 =====
 @mcp.tool()
 def full_report(lottery_type: str = "all", max_matches: int = 5, bankroll: float = 200) -> dict:
-    """一站式竞彩+北单全玩法分析报告。"""
+    """一站式竞彩+北单分析报告。严格区分两种彩种的玩法和规则。"""
     import datetime
     r = {"time": datetime.datetime.now().isoformat(), "bankroll": bankroll, "sections": []}
     
-    def _analyze_matches(matches_list, lottery_label, note_text):
-        """共享分析引擎 — 竞彩和北单使用同一代码路径"""
-        out = []
-        for m in matches_list:
-            try:
-                e = {"match": str(m.get("home","?")) + " vs " + str(m.get("away","?")),
-                     "league": str(m.get("league","")), "hc": str(m.get("handicap","0"))}
-                sp_h = _safe_float(m.get("sp_h", 99)); sp_d = _safe_float(m.get("sp_d", 99)); sp_a = _safe_float(m.get("sp_a", 99))
-                he_r = get_team_elo(str(m.get("home","")), str(m.get("league",""))).get("results",[])
-                ae_r = get_team_elo(str(m.get("away","")), str(m.get("league",""))).get("results",[])
-                he = _safe_float(he_r[0].get("elo",1500)) if he_r else 1500.0
-                ae = _safe_float(ae_r[0].get("elo",1500)) if ae_r else 1500.0
-                ep = 1.0 / (1.0 + 10.0 ** ((ae - he - 65.0) / 400.0))
-                lf = get_league_factor(str(m.get("league","")))
-                fac = lf.get("factors") if isinstance(lf, dict) else None
-                lt = _safe_float((fac or {}).get("avg_goals", 2.5))
-                sx = beidan_sxds_analyzer(lt, str(m.get("league","")))
-                hf = half_full_analyzer(_safe_float(ep), 0.22, _safe_float(1.0-ep-0.22), "beidan")
-                e["plays"] = {
-                    "SPF": {"odds": [sp_h, sp_d, sp_a], "hc": str(m.get("handicap","0")),
-                            "elo_win": round(_safe_float(ep), 3),
-                            "pick": "主胜" if ep > 0.55 else ("客胜" if ep < 0.45 else "平局关注")},
-                    "SXDS": {"best": str(sx.get("best","")), "probs": sx.get("probs",{})},
-                    "HF": {"best": str(hf.get("best_pick","")), "prob": _safe_float(hf.get("best_prob",0))},
-                }
-                if abs(ep - 0.5) > 0.15:
-                    e["plays"]["WL"] = {"pick": "主胜" if ep > 0.5 else "客胜", "note": "胜负过关,最多15关"}
-                out.append(e)
-            except Exception as ex:
-                out.append({"match": str(m.get("home","")) + " vs " + str(m.get("away","")),
-                           "error": str(ex)[:120]})
-        r["sections"].append({"lottery": lottery_label, "matches": out, "note": note_text})
+    def _elo_for(team, league):
+        try:
+            res = get_team_elo(str(team), str(league)).get("results",[])
+            return _safe_float(res[0].get("elo",1500)) if res else 1500.0
+        except: return 1500.0
     
-    if lottery_type in ("all", "jingcai"):
+    def _elo_prob(he, ae):
+        return 1.0/(1.0+10.0**((ae-he-65.0)/400.0))
+    
+    # ═══════ 竞彩足球 ═══════
+    if lottery_type in ("all","jingcai"):
         jc = scrape_500_jczq()
-        up_jc = [m for m in (jc.get("matches",[]) if isinstance(jc,dict) and jc.get("ok") else [])
-                 if m.get("status") == "upcoming"][:max_matches]
-        _analyze_matches(up_jc, "竞彩足球", "竞彩固定赔率,71%返奖")
+        up = [m for m in (jc.get("matches",[]) if isinstance(jc,dict) and jc.get("ok") else [])
+              if m.get("status")=="upcoming"][:max_matches]
+        jc_out = []
+        for m in up:
+            try:
+                sp_h = _safe_float(m.get("sp_h",99)); sp_d = _safe_float(m.get("sp_d",99))
+                sp_a = _safe_float(m.get("sp_a",99)); hc = str(m.get("handicap","0"))
+                lg = str(m.get("league","")); hm = str(m.get("home","")); aw = str(m.get("away",""))
+                he = _elo_for(hm, lg); ae = _elo_for(aw, lg); ep = _elo_prob(he, ae)
+                imp = odds_implied_probabilities(sp_h, sp_d, sp_a)
+                kh = kelly_analyze(float(ep), sp_h, _safe_float(bankroll), "jingcai")
+                lf = get_league_factor(lg)
+                fac = lf.get("factors") if isinstance(lf,dict) else None
+                lt = _safe_float((fac or {}).get("avg_goals", 2.5))
+                sm = score_probability_matrix(lt*0.55, lt*0.45)
+                gd = sm.get("goals_dist",{})
+                o25 = round(sum(_safe_float(gd.get(str(i),0)) for i in range(3,17)),3)
+                hf = half_full_analyzer(float(ep), 0.22, float(1.0-ep-0.22), "jingcai")
+                # RQSPF analysis
+                try: hc_int = int(hc)
+                except: hc_int = 0
+                rqspf_note = ""
+                if hc_int != 0:
+                    ha = handicap_analyzer(float(ep), 0.22, float(1.0-ep-0.22), hc_int, lt*0.55, lt*0.45, lg)
+                    rqspf_note = str(ha.get("note",""))[:100]
+                e = {
+                    "match": f"{hm} vs {aw}", "league": lg, "time": str(m.get("time","")),
+                    "num": str(m.get("num","")), "handicap": hc,
+                    "plays": {
+                        "SPF_胜平负": {
+                            "odds": [sp_h, sp_d, sp_a], "elo_win": round(float(ep),3),
+                            "implied": round(float(imp.get("implied_home",0.5)),3),
+                            "kelly": round(float(kh.get("kelly_fraction",0)),4),
+                            "pick": "主胜" if kh.get("recommended") else ("客胜" if float(ep)<0.35 else "观望"),
+                            "confidence": "高" if float(kh.get("kelly_fraction",0))>0.1 else ("中" if float(kh.get("kelly_fraction",0))>0 else "低"),
+                        },
+                        "RQSPF_让球胜平负": {
+                            "handicap": hc, "note": rqspf_note or f"让球{hc}: 主队赢{hc}球以上才算主胜",
+                        } if hc_int != 0 else {"note": "本场无让球盘"},
+                        "TG_总进球": {
+                            "avg_goals": round(lt,1), "over25_prob": o25,
+                            "pick": "大球>2.5" if o25>0.5 else "小球<2.5",
+                            "top_goals": sorted([(str(k),round(_safe_float(v),3)) for k,v in gd.items() if _safe_float(v)>0.01], key=lambda x:-x[1])[:3],
+                        },
+                        "HF_半全场": {
+                            "best": str(hf.get("best_pick","")), "prob": round(float(hf.get("best_prob",0)),3),
+                            "top3": sorted(hf.get("probabilities",{}).items(), key=lambda x:-x[1])[:3] if hf.get("probabilities") else [],
+                        },
+                    },
+                    "rules": {"max_parlay": 8, "single": True, "payout": "71%", "prize": "2元×SP连乘,有封顶"},
+                }
+                jc_out.append(e)
+            except Exception as ex:
+                jc_out.append({"match": f"{str(m.get('home',''))} vs {str(m.get('away',''))}", "error": str(ex)[:120]})
+        r["sections"].append({"lottery": "竞彩足球", "play_types": ["SPF","RQSPF","TG","HF","CS(比分)","Mixed"],
+                              "rules": "固定赔率71%返奖,2元/注,封顶:单场10万/2-3关20万/4-5关50万/6关+100万",
+                              "matches": jc_out})
     
-    if lottery_type in ("all", "beidan"):
+    # ═══════ 北京单场 ═══════
+    if lottery_type in ("all","beidan"):
         bd = scrape_500_beidan()
         up_bd = [m for m in (bd.get("matches",[]) if isinstance(bd,dict) and bd.get("ok") else [])
-                 if m.get("status") == "upcoming"][:max_matches]
-        _analyze_matches(up_bd, "北京单场", "SP浮动,赛后才确定")
+                 if m.get("status")=="upcoming"][:max_matches]
+        bd_out = []
+        for m in up_bd:
+            try:
+                sp_h = _safe_float(m.get("sp_h",99)); sp_d = _safe_float(m.get("sp_d",99))
+                sp_a = _safe_float(m.get("sp_a",99)); hc = str(m.get("handicap","0"))
+                lg = str(m.get("league","")); hm = str(m.get("home","")); aw = str(m.get("away",""))
+                he = _elo_for(hm, lg); ae = _elo_for(aw, lg); ep = _elo_prob(he, ae)
+                kh = kelly_analyze(float(ep), sp_h, _safe_float(bankroll), "beidan")
+                lf = get_league_factor(lg)
+                fac = lf.get("factors") if isinstance(lf,dict) else None
+                lt = _safe_float((fac or {}).get("avg_goals", 2.5))
+                sx = beidan_sxds_analyzer(lt, lg)
+                hf = half_full_analyzer(float(ep), 0.22, float(1.0-ep-0.22), "beidan")
+                # WL analysis for clear favorites
+                wl = {}
+                if abs(float(ep)-0.5) > 0.15:
+                    wl = {"pick": "主胜" if float(ep)>0.5 else "客胜", "confidence": "高" if abs(float(ep)-0.5)>0.2 else "中",
+                          "note": "北单独有,只猜胜负不含平局,最多15关"}
+                e = {
+                    "match": f"{hm} vs {aw}", "league": lg, "time": str(m.get("time","")),
+                    "num": str(m.get("num","")), "handicap": hc,
+                    "plays": {
+                        "SPF_胜平负含让球": {
+                            "odds": [sp_h, sp_d, sp_a], "handicap": hc,
+                            "elo_win": round(float(ep),3),
+                            "kelly": round(float(kh.get("kelly_fraction",0)),4),
+                            "pick": "主胜" if float(ep)>0.55 else ("客胜" if float(ep)<0.45 else "平局关注"),
+                            "note": f"让球{hc}: 需考虑让球后结果",
+                        },
+                        "SXDS_上下单双": {
+                            "best": str(sx.get("best","")),
+                            "probs": {k: round(float(v),4) for k,v in sx.get("probs",{}).items()},
+                            "note": "≥3球为上,<3球为下; 单=奇数,双=偶数 | 最多6关",
+                        },
+                        "HF_半全场": {
+                            "best": str(hf.get("best_pick","")),
+                            "prob": round(float(hf.get("best_prob",0)),3),
+                            "note": "9个选项,最多3关",
+                        },
+                        "WL_胜负过关": wl if wl else {"note": "双方实力接近,不推荐胜负过关"},
+                    },
+                    "rules": {"max_parlay": {"SPF":6,"TG":6,"CS":3,"HF":3,"SXDS":6,"WL":15},
+                              "payout": "65%", "prize": "2元×最终SP连乘×65%,无封顶",
+                              "sp_note": "⚠️ SP为参考值,赛后才确定最终SP"},
+                }
+                bd_out.append(e)
+            except Exception as ex:
+                bd_out.append({"match": f"{str(m.get('home',''))} vs {str(m.get('away',''))}", "error": str(ex)[:120]})
+        # ELO self-building from finished matches
+        finished = [m for m in (bd.get("matches",[]) if isinstance(bd,dict) and bd.get("ok") else [])
+                    if m.get("status")=="finished" and m.get("score")]
+        elo_updates = []
+        for fm in finished[:20]:
+            try:
+                hm = str(fm.get("home","")); aw = str(fm.get("away",""))
+                sc = str(fm.get("score","0:0")).split(":")
+                hg, ag = int(sc[0]), int(sc[1])
+                he = _elo_for(hm, str(fm.get("league",""))); ae = _elo_for(aw, str(fm.get("league","")))
+                new_elo = elo_calculate(he, ae, hg, ag)
+                elo_updates.append({"match": f"{hm} {hg}-{ag} {aw}",
+                    "elo_change": f"{he}→{new_elo.get('new_home_elo',he)} / {ae}→{new_elo.get('new_away_elo',ae)}"})
+            except: pass
+        r["sections"].append({"lottery": "北京单场", "play_types": ["SPF(含让球)","TG","CS(25种)","HF","SXDS","WL"],
+                              "rules": "浮动SP值65%返奖,2元/注,无封顶,SP赛后才确定",
+                              "matches": bd_out,
+                              "elo_self_building": {"finished_analyzed": len(elo_updates), "samples": elo_updates[:5]}})
     
-    r["sections"].append({"section": "资金管理", "data": bankroll_calculator(_safe_float(bankroll), "medium", 3)})
+    r["sections"].append({"section": "资金管理", "data": bankroll_calculator(_safe_float(bankroll), "medium", 3),
+                          "竞彩": "单注2元,有封顶", "北单": "单注2元,SP浮动,赛后确定"})
     return r
 def _parse_jczq_html(html: str) -> list:
     """解析竞彩足球500.com HTML — 基于实际页面文本内容提取。
