@@ -1,0 +1,153 @@
+{
+  "jingcai": {
+    "name": "竞彩足球",
+    "issuer": "国家体育总局体育彩票管理中心",
+    "payout_rate": 0.71,
+    "odds_type": "固定赔率(fixed)",
+    "betting_unit": "2元/注",
+    "kelly_threshold": 0.05,
+    "prize_formula": "单注奖金=2元×所选场次SP连乘(保留2位小数,银行家舍入)",
+    "prize_cap": {
+      "单场": 100000,
+      "2-3关": 200000,
+      "4-5关": 500000,
+      "6关及以上": 1000000
+    },
+    "plays": {
+      "胜平负(SPF)": {
+        "options": 3,
+        "options_desc": "主胜(3)/平(1)/客胜(0)",
+        "single": true,
+        "single_note": "部分场次开放单关",
+        "max_parlay": 8,
+        "free_parlay_max": 8
+      },
+      "让球胜平负(RQSPF)": {
+        "options": 3,
+        "options_desc": "让球后:主胜/平/客胜, 让球值从-3到+3",
+        "single": true,
+        "max_parlay": 8,
+        "free_parlay_max": 8
+      },
+      "比分(CS)": {
+        "options": 31,
+        "options_desc": "主胜13种(含胜其他)+平5种(含平其他)+客负13种(含负其他)",
+        "single": true,
+        "max_parlay": 4,
+        "free_parlay_max": 4
+      },
+      "总进球(TG)": {
+        "options": 8,
+        "options_desc": "0/1/2/3/4/5/6/7+(7球及以上)",
+        "single": true,
+        "max_parlay": 6,
+        "free_parlay_max": 6
+      },
+      "半全场(HF/FT)": {
+        "options": 9,
+        "options_desc": "胜胜/胜平/胜负/平胜/平平/平负/负胜/负平/负负",
+        "single": true,
+        "max_parlay": 4,
+        "free_parlay_max": 4
+      },
+      "混合过关(Mixed)": {
+        "options": "mixed",
+        "options_desc": "同一运动项目不同比赛的不同玩法组合",
+        "single": false,
+        "single_note": "混合过关不支持单关投注",
+        "max_parlay": "木桶原则:取所含玩法中最低过关上限",
+        "free_parlay_max": "同max_parlay",
+        "restrictions": [
+          "同一场比赛的不同玩法不能组合",
+          "不同运动项目不能混合",
+          "关数上限=所选玩法中最低的max_parlay"
+        ]
+      }
+    },
+    "free_parlay": {
+      "name": "自由过关",
+      "description": "可选择2-8关任意组合,系统自动生成所有N串1组合",
+      "max_matches": 8,
+      "no_banker": true
+    },
+    "mxn_examples": {
+      "3串3": "C(3,2)=3注 (任意2场对即中奖)",
+      "3串4": "C(3,3)+C(3,2)=4注 (3串1+3个2串1)",
+      "3串7": "C(3,1)+C(3,2)+C(3,3)=7注",
+      "5串10": "C(5,3)=10注",
+      "5串26": "C(5,2)+C(5,3)+C(5,4)+C(5,5)=26注",
+      "6串63": "ΣC(6,i),i=1..6=63注"
+    }
+  },
+  "beidan": {
+    "name": "北京单场",
+    "issuer": "北京市体育彩票管理中心",
+    "payout_rate": 0.65,
+    "odds_type": "浮动SP值(floating_sp), 赛后才确定最终SP",
+    "betting_unit": "2元/注",
+    "kelly_threshold": 0.08,
+    "prize_formula": "单注奖金=2元×所选场次SP连乘×65%",
+    "prize_cap": null,
+    "plays": {
+      "胜平负(含让球)": {
+        "options": 3,
+        "options_desc": "含让球:主队±1~±5球后的胜平负",
+        "single": true,
+        "max_parlay": 6,
+        "free_parlay_max": 6
+      },
+      "总进球": {
+        "options": 8,
+        "options_desc": "0/1/2/3/4/5/6/7+",
+        "single": true,
+        "max_parlay": 6,
+        "free_parlay_max": 6
+      },
+      "比分": {
+        "options": 25,
+        "options_desc": "主胜10种+平5种+客负10种",
+        "single": true,
+        "max_parlay": 3,
+        "free_parlay_max": 3
+      },
+      "半全场": {
+        "options": 9,
+        "options_desc": "3-3/3-1/3-0/1-3/1-1/1-0/0-3/0-1/0-0",
+        "single": true,
+        "max_parlay": 3,
+        "free_parlay_max": 3
+      },
+      "上下单双(SXDS)": {
+        "options": 4,
+        "options_desc": "上单(≥3球+奇数)/上双(≥3球+偶数)/下单(<3球+奇数)/下双(<3球+偶数)",
+        "single": true,
+        "max_parlay": 6,
+        "free_parlay_max": 6
+      },
+      "胜负过关(WL)": {
+        "options": 2,
+        "options_desc": "只猜胜负不含平局,适合强弱分明",
+        "single": true,
+        "max_parlay": 15,
+        "free_parlay_max": 15
+      }
+    },
+    "special_rules": {
+      "取消场次": "SP值=1 计算(视为正确)",
+      "延期超12小时": "所有选项视为正确,SP=1",
+      "延期不超12小时": "按实际比赛结果计奖"
+    }
+  },
+  "summary": {
+    "total_plays": 12,
+    "竞彩6种": "SPF/RQSPF/CS/TG/HF-FT/Mixed",
+    "北单6种": "SPF(含让球)/TG/CS/HF-FT/SXDS/WL",
+    "key_differences": [
+      "竞彩=固定赔率71%返奖,北单=浮动SP65%返奖",
+      "竞彩有奖金封顶(单场10万→6关+100万),北单无封顶",
+      "北单有胜负过关(15关),竞彩无此玩法",
+      "竞彩30种比分(31-1含胜其他),北单25种比分(10+5+10)",
+      "竞彩有混合过关(可跨玩法),北单无混合过关"
+    ]
+  }
+}

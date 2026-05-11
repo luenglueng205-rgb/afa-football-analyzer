@@ -28,6 +28,72 @@ if not LEAGUE_FACTORS:
 
 mcp = FastMCP("afa-football-analyzer")
 
+# ===== 统一规则引擎 (单一数据源) =====
+import json as _json
+
+def _load_rules():
+    """从JSON加载官方规则(单一数据源)"""
+    p = DATA_DIR / "official_rules.json"
+    if p.exists():
+        return _json.loads(open(p).read())
+    # Fallback: embedded rules for standalone mode
+    return _json.loads(open(Path(__file__).parent / "data" / "official_rules.json").read()) if (Path(__file__).parent / "data" / "official_rules.json").exists() else {}
+
+_RULES = None
+def _rules():
+    global _RULES
+    if _RULES is None: _RULES = _load_rules()
+    return _RULES
+
+def _jc(): return _rules().get("jingcai", {})
+def _bd(): return _rules().get("beidan", {})
+
+def _rate(lt="jingcai"):
+    """返奖率:竞彩71%(固定赔率已含),北单65%"""
+    return 1.0 if lt == "jingcai" else 0.65
+
+def _kelly_threshold(lt="jingcai"):
+    """Kelly阈值"""
+    return _rules().get(lt, {}).get("kelly_threshold", 0.05)
+
+def _prize_cap(level):
+    """奖金封顶"""
+    caps = _jc().get("prize_cap", {})
+    if level <= 1: return caps.get("单场", 100000)
+    if level <= 3: return caps.get("2-3关", 200000)
+    if level <= 5: return caps.get("4-5关", 500000)
+    return caps.get("6关及以上", 1000000)
+
+def _max_parlay(play, lt="jingcai"):
+    """查询玩法最高过关数"""
+    plays = _rules().get(lt, {}).get("plays", {})
+    for name, info in plays.items():
+        if play.upper() in name.upper():
+            mp = info.get("max_parlay", 8)
+            return mp if isinstance(mp, int) else 8
+    return 8
+
+def _free_parlay_max(play, lt="jingcai"):
+    """自由过关最高关数(含木桶原则)"""
+    plays = _rules().get(lt, {}).get("plays", {})
+    vals = []
+    if isinstance(play, list):
+        for p in play:
+            for name, info in plays.items():
+                if p.upper() in name.upper():
+                    v = info.get("free_parlay_max", info.get("max_parlay", 8))
+                    if isinstance(v, int): vals.append(v)
+    else:
+        for name, info in plays.items():
+            if play.upper() in name.upper():
+                v = info.get("free_parlay_max", info.get("max_parlay", 8))
+                return v if isinstance(v, int) else 8
+    return min(vals) if vals else 8
+
+# ===== 替换原有LOTTERY_RULES =====
+LOTTERY_RULES = _load_rules()
+
+
 # MCP sandbox-safe float conversion — handles str/int/float/list edge cases
 def _safe_float(v, default=0.0):
     if v is None: return default
@@ -559,8 +625,7 @@ def mxn_calculator(matches_sp: list, m: int, n: int = 1, stake_per_bet: int = 2,
     }
     
     # Play-type max parlay limits
-    parlay_limits = {"SPF":8,"RQSPF":8,"CS":4,"TG":6,"HF":4,"SXDS":6,"WL":15,"Mixed":8}
-    max_parlay = parlay_limits.get(play_type, 8)
+    max_parlay = _max_parlay(play_type)
     
     play_levels = mxn_map.get((m, n))
     if not play_levels:
@@ -576,8 +641,7 @@ def mxn_calculator(matches_sp: list, m: int, n: int = 1, stake_per_bet: int = 2,
         return {"error": f"{play_type}玩法最高{max_parlay}关,M{m}串{n}所有组合都超限"}
     
     # Calculate all combinations
-    rate = 0.65 if lottery_type == "beidan" else 1.0
-    limits = {1:100000, 2:200000, 3:200000, 4:500000, 5:500000, 6:1000000, 7:1000000, 8:1000000}
+    rate = _rate(lottery_type)
     
     total_bets = 0
     total_stake = 0
@@ -585,7 +649,7 @@ def mxn_calculator(matches_sp: list, m: int, n: int = 1, stake_per_bet: int = 2,
     best_prize = 0
     
     for level in valid_levels:
-        max_limit = limits.get(level, 200000)
+        max_limit = _prize_cap(level)
         # Generate all combination of 'level' matches from 'm'
         combos = list(combinations(range(m), level))
         for combo in combos:
@@ -650,7 +714,7 @@ def parlay_optimizer(matches: list, lottery_type: str = "jingcai", budget: float
         if k > th and min_sp <= sp <= max_sp and prob > min_prob:
             valid.append({**m, 'kelly': k, 'sp': sp, 'win_prob': prob})
     if len(valid) < 2: return {"error": f"可串关场次不足(需≥2,当前{len(valid)})", "threshold_used": th, "valid_count": len(valid)}
-    rate = 0.65 if lottery_type.lower() == "beidan" else 1.0
+    rate = _rate(lottery_type)
     results = []
     max_n = min(len(valid), 6)
     for k in range(2, max_n + 1):
@@ -676,8 +740,7 @@ def free_parlay_calc(matches: int, min_level: int = 2, max_level: int = None,
         play_type: 玩法(SPF=8关,TG=6关,CS=4关,HF=4关,WL=15关)
     """
     import math as _math
-    play_limits = {"SPF":8,"RQSPF":8,"CS":4,"TG":6,"HF":4,"SXDS":6,"WL":15}
-    play_limit = play_limits.get(play_type, 8)
+    play_limit = _max_parlay(play_type)
     if matches > 8 or matches < 2:
         return {"error": "场数需在2-8之间"}
     if max_level is None:
@@ -885,7 +948,7 @@ def smart_bet_selector(matches: list, lottery_type: str = "jingcai", stake_per_b
         min_kelly: 最低凯利阈值
     """
     th = min_kelly if lottery_type == "jingcai" else max(min_kelly, 0.08)
-    rate = 0.65 if lottery_type == "beidan" else 1.0
+    rate = _rate(lottery_type)
     
     selected = []
     for m in matches:
@@ -1205,124 +1268,7 @@ def win_loss_analyzer(matches: list) -> dict:
     }
 
 # ===== 24. 官方规则知识库 =====
-LOTTERY_RULES = {
-    "jingcai": {
-        "name": "竞彩足球",
-        "issuer": "国家体育总局体育彩票管理中心",
-        "payout_rate": 0.71,
-        "odds_type": "固定赔率(fixed)",
-        "betting_unit": "2元/注",
-        "kelly_threshold": 0.05,
-        "prize_formula": "单注奖金=2元×所选场次SP连乘(保留2位小数,银行家舍入)",
-        "prize_cap": {
-            "单场": 100000,  # 单注最高10万
-            "2-3关": 200000,
-            "4-5关": 500000,
-            "6关及以上": 1000000,
-        },
-        "plays": {
-            "胜平负(SPF)": {
-                "options": 3, "options_desc": "主胜(3)/平(1)/客胜(0)",
-                "single": True, "single_note": "部分场次开放单关",
-                "max_parlay": 8, "free_parlay_max": 8,
-            },
-            "让球胜平负(RQSPF)": {
-                "options": 3, "options_desc": "让球后:主胜/平/客胜, 让球值从-3到+3",
-                "single": True, "max_parlay": 8, "free_parlay_max": 8,
-            },
-            "比分(CS)": {
-                "options": 31, "options_desc": "主胜13种(含胜其他)+平5种(含平其他)+客负13种(含负其他)",
-                "single": True, "max_parlay": 4, "free_parlay_max": 4,
-            },
-            "总进球(TG)": {
-                "options": 8, "options_desc": "0/1/2/3/4/5/6/7+(7球及以上)",
-                "single": True, "max_parlay": 6, "free_parlay_max": 6,
-            },
-            "半全场(HF/FT)": {
-                "options": 9, "options_desc": "胜胜/胜平/胜负/平胜/平平/平负/负胜/负平/负负",
-                "single": True, "max_parlay": 4, "free_parlay_max": 4,
-            },
-            "混合过关(Mixed)": {
-                "options": "mixed", "options_desc": "同一运动项目不同比赛的不同玩法组合",
-                "single": False, "single_note": "混合过关不支持单关投注",
-                "max_parlay": "木桶原则:取所含玩法中最低过关上限",
-                "free_parlay_max": "同max_parlay",
-                "restrictions": [
-                    "同一场比赛的不同玩法不能组合",
-                    "不同运动项目不能混合",
-                    "关数上限=所选玩法中最低的max_parlay",
-                ],
-            },
-        },
-        "free_parlay": {
-            "name": "自由过关",
-            "description": "可选择2-8关任意组合,系统自动生成所有N串1组合",
-            "max_matches": 8,
-            "no_banker": True,  # 不支持设胆
-        },
-        "mxn_examples": {
-            "3串3": "C(3,2)=3注 (任意2场对即中奖)",
-            "3串4": "C(3,3)+C(3,2)=4注 (3串1+3个2串1)",
-            "3串7": "C(3,1)+C(3,2)+C(3,3)=7注",
-            "5串10": "C(5,3)=10注",
-            "5串26": "C(5,2)+C(5,3)+C(5,4)+C(5,5)=26注",
-            "6串63": "ΣC(6,i),i=1..6=63注",
-        },
-    },
-    "beidan": {
-        "name": "北京单场",
-        "issuer": "北京市体育彩票管理中心",
-        "payout_rate": 0.65,
-        "odds_type": "浮动SP值(floating_sp), 赛后才确定最终SP",
-        "betting_unit": "2元/注",
-        "kelly_threshold": 0.08,
-        "prize_formula": "单注奖金=2元×所选场次SP连乘×65%",
-        "prize_cap": None,  # 北单无封顶
-        "plays": {
-            "胜平负(含让球)": {
-                "options": 3, "options_desc": "含让球:主队±1~±5球后的胜平负",
-                "single": True, "max_parlay": 6, "free_parlay_max": 6,
-            },
-            "总进球": {
-                "options": 8, "options_desc": "0/1/2/3/4/5/6/7+",
-                "single": True, "max_parlay": 6, "free_parlay_max": 6,
-            },
-            "比分": {
-                "options": 25, "options_desc": "主胜10种+平5种+客负10种",
-                "single": True, "max_parlay": 3, "free_parlay_max": 3,
-            },
-            "半全场": {
-                "options": 9, "options_desc": "3-3/3-1/3-0/1-3/1-1/1-0/0-3/0-1/0-0",
-                "single": True, "max_parlay": 3, "free_parlay_max": 3,
-            },
-            "上下单双(SXDS)": {
-                "options": 4, "options_desc": "上单(≥3球+奇数)/上双(≥3球+偶数)/下单(<3球+奇数)/下双(<3球+偶数)",
-                "single": True, "max_parlay": 6, "free_parlay_max": 6,
-            },
-            "胜负过关(WL)": {
-                "options": 2, "options_desc": "只猜胜负不含平局,适合强弱分明",
-                "single": True, "max_parlay": 15, "free_parlay_max": 15,
-            },
-        },
-        "special_rules": {
-            "取消场次": "SP值=1 计算(视为正确)",
-            "延期超12小时": "所有选项视为正确,SP=1",
-            "延期不超12小时": "按实际比赛结果计奖",
-        },
-    },
-    "summary": {
-        "total_plays": 12,
-        "竞彩6种": "SPF/RQSPF/CS/TG/HF-FT/Mixed",
-        "北单6种": "SPF(含让球)/TG/CS/HF-FT/SXDS/WL",
-        "key_differences": [
-            "竞彩=固定赔率71%返奖,北单=浮动SP65%返奖",
-            "竞彩有奖金封顶(单场10万→6关+100万),北单无封顶",
-            "北单有胜负过关(15关),竞彩无此玩法",
-            "竞彩30种比分(31-1含胜其他),北单25种比分(10+5+10)",
-            "竞彩有混合过关(可跨玩法),北单无混合过关",
-        ],
-    },
-}
+
 
 @mcp.tool()
 def official_knowledge(lottery_type: str = "all") -> dict:
@@ -1498,7 +1444,7 @@ def hedge_optimizer(home_win_prob: float, draw_prob: float, away_win_prob: float
         lottery_type: jingcai/beidan
     """
     import math
-    rate = 0.71 if lottery_type == "jingcai" else 0.65
+    rate = _rate(lottery_type)
     
     # Correlation estimates (based on football statistics)
     # Home win → more likely over 2.5 goals (home teams score more when winning)
@@ -1726,7 +1672,7 @@ def backtest(matches: int = 100, min_kelly: float = 0.05, league_filter: str = "
     """
     import random, math as _math
     random.seed(42)
-    rate = 0.71 if lottery_type == "jingcai" else 0.65
+    rate = _rate(lottery_type)
     
     # Simulate backtest using odds calibration data
     total_bets = 0
@@ -2012,7 +1958,7 @@ def multi_kelly_allocator(matches: list, bankroll: float = 10000, lottery_type: 
         bankroll: 总资金
         max_stake_pct: 单场最大投入比例(默认25%)
     """
-    rate = 0.71 if lottery_type == "jingcai" else 0.65
+    rate = _rate(lottery_type)
     
     allocations = []
     total_kelly = 0
