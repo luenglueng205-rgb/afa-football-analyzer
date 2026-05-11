@@ -1,0 +1,140 @@
+{
+  "德国超级联赛": {
+    "matches": 6907,
+    "avg_cards": 3.91,
+    "avg_yellows": 3.75,
+    "avg_reds": 0.166
+  },
+  "英格兰冠军联赛": {
+    "matches": 12535,
+    "avg_cards": 3.38,
+    "avg_yellows": 3.23,
+    "avg_reds": 0.151
+  },
+  "英格兰甲级联赛": {
+    "matches": 12320,
+    "avg_cards": 3.29,
+    "avg_yellows": 3.13,
+    "avg_reds": 0.163
+  },
+  "英格兰乙级联赛": {
+    "matches": 12392,
+    "avg_cards": 3.22,
+    "avg_yellows": 3.05,
+    "avg_reds": 0.174
+  },
+  "苏格兰超级联赛": {
+    "matches": 4959,
+    "avg_cards": 3.6,
+    "avg_yellows": 3.39,
+    "avg_reds": 0.203
+  },
+  "英格兰超级联赛": {
+    "matches": 8619,
+    "avg_cards": 3.45,
+    "avg_yellows": 3.31,
+    "avg_reds": 0.141
+  },
+  "法国超级联赛": {
+    "matches": 7636,
+    "avg_cards": 3.79,
+    "avg_yellows": 3.55,
+    "avg_reds": 0.239
+  },
+  "意大利超级联赛": {
+    "matches": 7947,
+    "avg_cards": 4.7,
+    "avg_yellows": 4.44,
+    "avg_reds": 0.265
+  },
+  "西班牙超级联赛": {
+    "matches": 7940,
+    "avg_cards": 5.33,
+    "avg_yellows": 5.03,
+    "avg_reds": 0.295
+  },
+  "德国乙级联赛": {
+    "matches": 3042,
+    "avg_cards": 4.45,
+    "avg_yellows": 4.26,
+    "avg_reds": 0.192
+  },
+  "比利时超级联赛": {
+    "matches": 2534,
+    "avg_cards": 4.25,
+    "avg_yellows": 4.02,
+    "avg_reds": 0.23
+  },
+  "法国乙级联赛": {
+    "matches": 3158,
+    "avg_cards": 4.01,
+    "avg_yellows": 3.76,
+    "avg_reds": 0.25
+  },
+  "苏格兰冠军联赛": {
+    "matches": 1532,
+    "avg_cards": 3.7,
+    "avg_yellows": 3.55,
+    "avg_reds": 0.154
+  },
+  "葡萄牙超级联赛": {
+    "matches": 2736,
+    "avg_cards": 5.4,
+    "avg_yellows": 5.11,
+    "avg_reds": 0.294
+  },
+  "挪威超级联赛": {
+    "matches": 2662,
+    "avg_cards": 3.18,
+    "avg_yellows": 3.01,
+    "avg_reds": 0.173
+  },
+  "土耳其超级联赛": {
+    "matches": 3039,
+    "avg_cards": 4.81,
+    "avg_yellows": 4.55,
+    "avg_reds": 0.254
+  },
+  "西班牙乙级联赛": {
+    "matches": 4093,
+    "avg_cards": 5.27,
+    "avg_yellows": 5.01,
+    "avg_reds": 0.266
+  },
+  "希腊超级联赛": {
+    "matches": 2121,
+    "avg_cards": 5.44,
+    "avg_yellows": 5.2,
+    "avg_reds": 0.242
+  },
+  "以色列超级联赛": {
+    "matches": 1909,
+    "avg_cards": 5.45,
+    "avg_yellows": 5.21,
+    "avg_reds": 0.239
+  },
+  "意大利乙级联赛": {
+    "matches": 3450,
+    "avg_cards": 5.12,
+    "avg_yellows": 4.87,
+    "avg_reds": 0.257
+  },
+  "苏格兰甲级联赛": {
+    "matches": 180,
+    "avg_cards": 4.19,
+    "avg_yellows": 4.09,
+    "avg_reds": 0.094
+  },
+  "苏格兰乙级联赛": {
+    "matches": 180,
+    "avg_cards": 4.32,
+    "avg_yellows": 4.19,
+    "avg_reds": 0.133
+  },
+  "欧洲协会联赛": {
+    "matches": 552,
+    "avg_cards": 3.91,
+    "avg_yellows": 3.74,
+    "avg_reds": 0.168
+  }
+}

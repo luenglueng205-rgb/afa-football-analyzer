@@ -3,6 +3,7 @@ import json, os, math
 from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 from .historical import HIST
+from .historical import HIST
 
 # Load embedded data
 DATA_DIR = Path(__file__).parent / "data" if (Path(__file__).parent / "data").exists() else Path(os.environ.get("AFA_DATA_DIR", "."))
@@ -2003,13 +2004,9 @@ def real_backtest(kelly_min: float = 0.05, max_odds: float = 3.0, min_matches: i
                   league: str = "", years: str = "2024-2026") -> dict:
     """真实历史回测 — 用15.9万场赛果+多庄家赔率验证策略。非随机模拟,每笔都有真实记录。
     """
-    import zipfile, json as _json, math as _math
-    zp = "/Users/jand/Desktop/INTEGRATED_COMPLETE_DATA.json.zip"
-    try:
-        with zipfile.ZipFile(zp) as z:
-            with z.open('INTEGRATED_COMPLETE_DATA.json') as f:
-                data = _json.load(f)
-    except Exception:
+    import math as _math
+    data = {"matches": HIST.load()}
+    if not data["matches"]:
         return {"error": "历史数据文件未找到"}
     
     bank = 10000; bets = wins = 0; curve = [bank]; max_dd = 0
