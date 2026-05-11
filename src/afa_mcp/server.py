@@ -1454,7 +1454,22 @@ def _parse_500_html(html: str, lottery_type: str = "beidan") -> list:
     return matches
 
 # ===== 31-35. 多数据源集成 =====
-# API keys loaded from environment (injected via LobeHub credentials)
+# API keys: 从环境变量加载, 或从 AFA_DATA_DIR/.env 文件加载
+# 配置方式: cp configs/.env.example configs/.env 然后填入你的免费API key
+def _load_api_keys():
+    """从环境变量或 .env 文件加载 API 密钥"""
+    env_file = os.environ.get("AFA_ENV_FILE", os.path.join(str(DATA_DIR), ".env"))
+    if os.path.exists(env_file):
+        import configparser
+        with open(env_file) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    k, v = line.split('=', 1)
+                    os.environ.setdefault(k.strip(), v.strip())
+
+_load_api_keys()
+
 _FDO_KEY = os.environ.get("FOOTBALL_DATA_ORG_KEY", "")
 _AF_KEY = os.environ.get("API_FOOTBALL_KEY", "")
 _ODDS_KEY = os.environ.get("ODDS_API_KEY", "")
