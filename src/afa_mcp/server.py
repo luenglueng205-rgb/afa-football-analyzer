@@ -420,25 +420,54 @@ ELO_NAME_MAP = {
     "华沙莱吉亚": "Legia", "哥本哈根": "FC Copenhagen",
     "中日德兰": "Midtjylland", "布隆德比": "Brondby",
 }
+
+# Auto-generated league→team mapping for fuzzy ELO lookup (from 15.9万场数据)
+LEAGUE_TEAM_MAP = {"以色列超级联赛": ["Panathinaikos", "Niki Volos", "Kerkyra", "Kavala", "Thrasyvoulos", "Atromitos", "Kallonis", "Akratitos", "OFI Crete", "Egaleo", "Larisa", "Lamia", "Veria", "Kalamaria", "Olympiakos Volou", "Levadeiakos", "Olympiakos", "Panetolikos", "Platanias", "OFI", "Giannina", "Ergotelis", "Iraklis", "Kifisia", "Aris", "Kallithea", "Panthrakikos", "Apollon", "Ionikos", "Panserraikos"], "土耳其超级联赛": ["Yeni Malatyaspor", "Karagumruk", "Gaziantepspor", "A. Sebatspor", "Goztep", "Bursaspor", "Kayserispor", "Erzurum BB", "Pendikspor", "Galatasaray", "Diyarbakirspor", "Samsunspor", "Adanaspor", "Orduspor", "Gaziantep", "Ankaragucu", "Bodrumspor", "Altay", "Elazigspor", "Genclerbirligi", "Balikesirspor", "Malatyaspor", "Umraniyespor", "Trabzonspor", "Hatayspor", "Akhisar Belediyespor", "Karabukspor", "Denizlispor", "Buyuksehyr", "Ad. Demirspor"], "希腊超级联赛": ["Panathinaikos", "Niki Volos", "Kerkyra", "Kavala", "Thrasyvoulos", "Atromitos", "Kallonis", "Akratitos", "OFI Crete", "Egaleo", "Larisa", "Lamia", "Veria", "Kalamaria", "Olympiakos Volou", "Levadeiakos", "Olympiakos", "Panetolikos", "Platanias", "OFI", "Giannina", "Ergotelis", "Iraklis", "Kifisia", "Aris", "Kallithea", "Panthrakikos", "Apollon", "Ionikos", "Panserraikos"], "德国乙级联赛": ["Duisburg", "Regensburg", "Hansa Rostock", "Unterhaching", "Holstein Kiel", "Wurzburger Kickers", "Stuttgart", "Lubeck", "Saarbrucken", "Hamburg", "Burghausen", "Mainz", "Koblenz", "Wehen", "Hoffenheim", "Karlsruhe", "FC Koln", "Dresden", "Aalen", "Elversberg", "Darmstadt", "Offenbach", "Ein Trier", "Frankfurt FSV", "Hertha", "Heidenheim", "Bielefeld", "Kaiserslautern", "M'gladbach", "Sandhausen"], "德国超级联赛": ["Duisburg", "Hansa Rostock", "Holstein Kiel", "Stuttgart", "Hamburg", "Mainz", "Hoffenheim", "Karlsruhe", "FC Koln", "Leverkusen", "Darmstadt", "Hertha", "Heidenheim", "Bielefeld", "Kaiserslautern", "M'gladbach", "Cottbus", "Wolfsburg", "Paderborn", "Augsburg", "Werder Bremen", "Greuther Furth", "Aachen", "Schalke 04", "Ein Frankfurt", "Ingolstadt", "Bayern Munich", "St Pauli", "Nurnberg", "Union Berlin"], "意大利乙级联赛": ["FeralpiSalo", "Padova", "Siena", "Palermo", "Spezia", "Frosinone", "Genoa", "Triestina", "Reggiana", "Chievo", "Novara", "Venezia", "Monza", "Como", "Gubbio", "Benevento", "Verona", "Ravenna", "Portogruaro", "Ascoli", "Mantova", "Crotone", "Juventus", "Salernitana", "Juve Stabia", "Nocerina", "Pisa", "Rimini", "Foggia", "Lecco"], "意大利超级联赛": ["Siena", "Milan", "Palermo", "Sampdoria", "Spezia", "Empoli", "Frosinone", "Genoa", "Pisa", "Cremonese", "Lazio", "Chievo", "Napoli", "Reggina", "Fiorentina", "Novara", "Atalanta", "Parma", "Venezia", "Roma", "Monza", "Como", "Benevento", "Ancona", "Verona", "Cagliari", "Spal", "Ascoli", "Cesena", "Catania"], "挪威超级联赛": ["Heerenveen", "Cambuur", "AZ Alkmaar", "Roosendaal", "Den Bosch", "FC Emmen", "Graafschap", "Nijmegen", "Utrecht", "Volendam", "Zwolle", "Sparta Rotterdam", "Vitesse", "Roda", "For Sittard", "Twente", "Dordrecht", "PSV Eindhoven", "Ajax", "Den Haag", "VVV Venlo", "Groningen", "Roda JC", "Willem II", "NAC Breda", "Go Ahead Eagles", "Heracles", "Telstar", "Almere City", "Feyenoord"], "欧洲协会联赛": ["Brackley Town", "Truro", "Rochdale", "York", "Sutton", "Yeovil", "Solihull", "Carlisle", "Woking", "Braintree Town", "Southend", "Wealdstone", "Tamworth", "Boreham Wood", "Gateshead", "Scunthorpe", "Hartlepool", "Morecambe", "Altrincham", "Boston Utd", "Aldershot", "Halifax", "Forest Green", "Eastleigh"], "比利时超级联赛": ["Anderlecht", "St Truiden", "Antwerp", "Beerschot VA", "Genk", "Gent", "St. Gilloise", "Lokeren", "Bergen", "Mechelen", "Oud-Heverlee Leuven", "Lierse", "Kortrijk", "Charleroi", "RWD Molenbeek", "Eupen", "Cercle Brugge", "Beveren", "RAAL La Louviere", "Club Brugge", "Louvieroise", "Mouscron-Peruwelz", "Oostende", "Standard", "Heusden Zolder", "Mouscron", "Waasland-Beveren", "Seraing", "Waregem", "Roeselare"], "法国乙级联赛": ["Sete", "Chambly", "Concarneau", "Istres", "Besancon", "Auxerre", "Annecy", "Orleans", "Arles", "Quevilly Rouen", "Amiens", "Tours", "Monaco", "Niort", "Angers", "Vannes", "Ajaccio GFCO", "Rodez", "Clermont", "Ajaccio", "Caen", "Valenciennes", "Beziers", "Le Havre", "Dijon", "Paris FC", "St Etienne", "Reims", "Toulouse", "Red Star"], "法国超级联赛": ["Lyon", "Auxerre", "Paris SG", "Istres", "Arles", "Amiens", "Monaco", "Angers", "Ajaccio GFCO", "Clermont", "Ajaccio", "Caen", "Valenciennes", "Nice", "Le Havre", "Dijon", "Paris FC", "St Etienne", "Reims", "Toulouse", "Sochaux", "Sedan", "Nimes", "Brest", "Metz", "Nantes", "Marseille", "Grenoble", "Nancy", "Strasbourg"], "苏格兰乙级联赛": ["Elgin", "Forfar", "Spartans", "Dumbarton", "Edinburgh City", "Clyde", "Stranraer", "East Kilbride", "Stirling", "Annan Athletic"], "苏格兰冠军联赛": ["Livingston", "Queens Park", "Dundee", "Queen of Sth", "Cowdenbeath", "Stranraer", "St Mirren", "Cove Rangers", "Gretna", "Partick", "Rangers", "Dumbarton", "Ayr", "Inverness C", "Arbroath", "Morton", "Stirling", "Hamilton", "St Johnstone", "Alloa", "Raith", "Hearts", "Airdrie Utd", "Falkirk", "Clyde", "Kilmarnock", "Brechin", "Dundee United", "Dunfermline", "Ross County"], "苏格兰甲级联赛": ["East Fife", "Alloa", "Queen of Sth", "Inverness C", "Peterhead", "Cove Rangers", "Stenhousemuir", "Kelty Hearts", "Hamilton", "Montrose"], "苏格兰超级联赛": ["Livingston", "Dundee", "Motherwell", "St Mirren", "Celtic", "Gretna", "Partick", "Rangers", "Inverness C", "Aberdeen", "Hamilton", "St Johnstone", "Hearts", "Falkirk", "Kilmarnock", "Dundee United", "Dunfermline", "Ross County", "Hibernian"], "英格兰乙级联赛": ["Crawley Town", "Hereford", "Rochdale", "Dag and Red", "Wycombe", "Luton", "Barrow", "Coventry", "Milton Keynes Dons", "Sutton", "Port Vale", "Blackpool", "York", "Hull", "Yeovil", "Mansfield", "Doncaster", "Accrington", "Bradford", "Boston", "Rushden & D", "Exeter", "Carlisle", "Bolton", "Salford", "Swansea", "Swindon", "Bournemouth", "Bristol Rvs", "Southend"], "英格兰冠军联赛": ["Derby", "Aston Villa", "Charlton", "Millwall", "Luton", "Wycombe", "Cardiff", "Coventry", "Milton Keynes Dons", "West Ham", "Blackpool", "Hull", "Yeovil", "Doncaster", "Bradford", "Leicester", "Wigan", "Bolton", "Leeds", "West Brom", "Swansea", "Norwich", "Sunderland", "Watford", "Bournemouth", "QPR", "Southend", "Sheffield United", "Southampton", "Ipswich"], "英格兰甲级联赛": ["Crawley Town", "Hereford", "Luton", "Rochdale", "Port Vale", "Blackpool", "Doncaster", "Accrington", "Bolton", "Swindon", "Norwich", "Bournemouth", "QPR", "Southend", "Scunthorpe", "Peterboro", "Hartlepool", "Northampton", "Morecambe", "Cheltenham", "Wrexham", "Cambridge", "Plymouth", "Wolves", "Leyton Orient", "Dag and Red", "Milton Keynes Dons", "Hull", "Leicester", "Rushden & D"], "英格兰超级联赛": ["Derby", "Aston Villa", "Charlton", "Man United", "Chelsea", "Luton", "Cardiff", "West Ham", "Arsenal", "Blackpool", "Hull", "Leicester", "Man City", "Wigan", "Bolton", "Leeds", "West Brom", "Wolves", "Tottenham", "Norwich", "Sunderland", "Watford", "Swansea", "Bournemouth", "QPR", "Sheffield United", "Southampton", "Stoke", "Ipswich", "Middlesbrough"], "葡萄牙超级联赛": ["Guimaraes", "Beira Mar", "Nacional", "Portimonense", "Feirense", "Uniao Madeira", "Gil Vicente", "Estoril", "Porto", "Sp Braga", "Trofense", "Rio Ave", "Naval", "Est Amadora", "Tondela", "Casa Pia", "Famalicao", "Belenenses", "Alverca", "AVS", "Academica", "Sp Lisbon", "Santa Clara", "Estrela", "Benfica", "Aves", "Setubal", "Vizela", "Arouca", "Chaves"], "西班牙乙级联赛": ["Leonesa", "Cordoba", "Alicante", "Lorca", "Recreativo", "Cartagena", "Reus Deportiu", "Vecindario", "Eibar", "Villarreal B", "Sociedad B", "Mallorca", "Almeria", "Sevilla B", "Oviedo", "Girona", "Amorebieta", "Betis", "Salamanca", "Ferrol", "Santander", "Burgos", "Valladolid", "Ciudad de Murcia", "La Coruna", "Jaen", "Fuenlabrada", "Sociedad", "Hercules", "Ceuta"], "西班牙超级联赛": ["Santander", "Cordoba", "Celta", "Getafe", "Huesca", "Osasuna", "Villarreal", "Recreativo", "Valladolid", "Gimnastic", "Cadiz", "Espanol", "Sp Gijon", "Real Madrid", "La Coruna", "Sevilla", "Murcia", "Levante", "Las Palmas", "Alaves", "Eibar", "Sociedad", "Hercules", "Mallorca", "Xerez", "Almeria", "Granada", "Oviedo", "Barcelona", "Elche"]}
+
 # ===== 7. ELO查询 =====
 @mcp.tool()
-def get_team_elo(team_name: str) -> dict:
-    """从670队ELO数据库查询球队评级。支持中英文模糊匹配+智能回退。"""
-    # Try Chinese→English mapping first
+def get_team_elo(team_name: str, league: str = "") -> dict:
+    """从670队ELO数据库查询球队评级。支持中英文+联赛上下文模糊匹配+智能回退。
+    
+    Args:
+        team_name: 球队名(中文或英文)
+        league: 联赛名(用于精确匹配,如'意甲')
+    """
+    # Strategy 1: Exact Chinese→English mapping
     search_name = ELO_NAME_MAP.get(team_name, team_name)
     matches = [(k, v) for k, v in ELO_DB.items() if search_name.lower() in k.lower()]
+    
+    # Strategy 2: League-context aware (if league is provided)
+    if not matches and league and league in LEAGUE_TEAM_MAP:
+        league_english_teams = LEAGUE_TEAM_MAP[league]
+        # Try matching the Chinese name against English team names in this league
+        for et in league_english_teams:
+            if team_name.lower() in et.lower() or any(c in et.lower() for c in team_name if len(c) >= 2):
+                if et in ELO_DB:
+                    matches.append((et, ELO_DB[et]))
+        if matches:
+            matches = sorted(set(matches), key=lambda x: -x[1])[:5]
+    
+    # Strategy 3: Original Chinese name substring
     if not matches:
-        # Try original Chinese name
         matches = [(k, v) for k, v in ELO_DB.items() if team_name.lower() in k.lower()]
+    
+    # Strategy 4: Partial word/token matching
     if not matches:
-        # Fuzzy: try partial word matches (e.g. "新未来SC" tries "新未来")
-        for part in team_name.replace('SC','').replace('FC','').split():
-            if len(part) >= 2:
-                matches = [(k, v) for k, v in ELO_DB.items() if part.lower() in k.lower()]
+        tokens = team_name.replace('SC','').replace('FC','').replace('VS','').split()
+        for token in tokens:
+            if len(token) >= 2:
+                matches = [(k, v) for k, v in ELO_DB.items() if token.lower() in k.lower()]
                 if matches: break
+    
+    # Strategy 5: League-average ELO fallback
     if not matches:
-        # Ultimate fallback: return league-average ELO
-        return {"query": team_name, "results": [{"team": team_name, "elo": 1500.0, "note": "无数据,使用默认1500"}], "total": 0, "fallback": True}
+        avg_elo = 1500.0
+        if league and league in LEAGUE_TEAM_MAP:
+            elos = [ELO_DB.get(t, 1500) for t in LEAGUE_TEAM_MAP[league] if t in ELO_DB]
+            if elos: avg_elo = round(sum(elos)/len(elos), 1)
+        return {"query": team_name, "results": [{"team": team_name, "elo": avg_elo, "note": f"无数据,使用{league or '默认'}均值{avg_elo}"}], "total": 0, "fallback": True}
+    
     return {"query": team_name, "results": [{"team": k, "elo": round(v,1)} for k,v in sorted(matches, key=lambda x:-x[1])[:10]], "total": len(matches)}
 
 # ===== 8. 比分全景矩阵 =====
@@ -2369,8 +2398,8 @@ def full_report(lottery_type: str = "all", max_matches: int = 5, bankroll: float
                 e = {"match": str(m.get("home","?")) + " vs " + str(m.get("away","?")),
                      "league": str(m.get("league","")), "hc": str(m.get("handicap","0"))}
                 sp_h = _safe_float(m.get("sp_h", 99)); sp_d = _safe_float(m.get("sp_d", 99)); sp_a = _safe_float(m.get("sp_a", 99))
-                he_r = get_team_elo(str(m.get("home",""))).get("results",[])
-                ae_r = get_team_elo(str(m.get("away",""))).get("results",[])
+                he_r = get_team_elo(str(m.get("home","")), str(m.get("league",""))).get("results",[])
+                ae_r = get_team_elo(str(m.get("away","")), str(m.get("league",""))).get("results",[])
                 he = _safe_float(he_r[0].get("elo",1500)) if he_r else 1500.0
                 ae = _safe_float(ae_r[0].get("elo",1500)) if ae_r else 1500.0
                 ep = 1.0 / (1.0 + 10.0 ** ((ae - he - 65.0) / 400.0))
