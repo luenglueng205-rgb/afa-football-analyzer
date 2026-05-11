@@ -344,19 +344,24 @@ def mxn_calculator(matches_sp: list, m: int, n: int = 1, stake: float = 100, lot
     if len(matches_sp) < m: return {"error": f"需至少{m}场"}
     combos = list(combinations(range(len(matches_sp)), m))
     rate = 0.65 if lottery_type.lower() == "beidan" else 1.0
-    limits = {2:200000,3:200000,4:500000,5:500000,6:1000000,7:1000000,8:1000000}
+    limits = {1:100000, 2:200000, 3:200000, 4:500000, 5:500000, 6:1000000, 7:1000000, 8:1000000}
     max_limit = limits.get(m, 200000)
     details = []
     for combo in combos:
         sp = np.prod([matches_sp[i] for i in combo]) * rate
-        prize_mult = min(2 * sp, max_limit)
-        if prize_mult >= 10000: prize_mult *= 0.80
-        actual_prize = round(stake * sp * (0.71 if lottery_type == "jingcai" else 0.65), 0)
+        # 竞彩奖金=2元×SP连乘, 北单=2元×SP连乘×65%
+        prize_mult = 2 * sp  # 每注2元的奖金
+        if prize_mult > max_limit:
+            prize_mult = max_limit  # 封顶
+        # 银行家舍入(四舍六入五成双)
+        prize_mult = round(prize_mult, 2)
+        actual_prize = round(stake * prize_mult / 2, 0)
         details.append({"combo": list(combo), "sp": round(sp, 2), 
-                        "prize_per_2yuan": round(prize_mult, 2),
-                        "actual_prize": actual_prize})
+                        "prize_per_2yuan": prize_mult,
+                        "actual_prize": actual_prize,
+                        "note": "已封顶" if 2*sp > max_limit else None})
     return {"type": f"{m}串{n}", "lottery": lottery_type, "combos": len(combos),
-            "max_prize": max(d['prize'] for d in details) if details else 0, "samples": details[:3]}
+            "max_prize": max(d['prize_per_2yuan'] for d in details) if details else 0, "samples": details[:3]}
 
 # ===== 10. 串关优化 =====
 @mcp.tool()
@@ -889,46 +894,132 @@ def win_loss_analyzer(matches: list) -> dict:
 LOTTERY_RULES = {
     "jingcai": {
         "name": "竞彩足球",
-        "plays": {
-            "胜平负": {"options": 3, "single": True, "max_parlay": 8},
-            "让球胜平负": {"options": 3, "single": True, "max_parlay": 8},
-            "比分": {"options": 31, "single": True, "max_parlay": 4},
-            "总进球": {"options": 8, "single": True, "max_parlay": 6},
-            "半全场": {"options": 9, "single": True, "max_parlay": 4},
-            "混合过关": {"options": "mixed", "single": False, "max_parlay": 8},
-        },
+        "issuer": "国家体育总局体育彩票管理中心",
         "payout_rate": 0.71,
-        "odds_type": "fixed",
+        "odds_type": "固定赔率(fixed)",
+        "betting_unit": "2元/注",
         "kelly_threshold": 0.05,
-        "prize_cap": {2: 200000, 3: 200000, 4: 500000, 5: 500000, 6: 1000000},
+        "prize_formula": "单注奖金=2元×所选场次SP连乘(保留2位小数,银行家舍入)",
+        "prize_cap": {
+            "单场": 100000,  # 单注最高10万
+            "2-3关": 200000,
+            "4-5关": 500000,
+            "6关及以上": 1000000,
+        },
+        "plays": {
+            "胜平负(SPF)": {
+                "options": 3, "options_desc": "主胜(3)/平(1)/客胜(0)",
+                "single": True, "single_note": "部分场次开放单关",
+                "max_parlay": 8, "free_parlay_max": 8,
+            },
+            "让球胜平负(RQSPF)": {
+                "options": 3, "options_desc": "让球后:主胜/平/客胜, 让球值从-3到+3",
+                "single": True, "max_parlay": 8, "free_parlay_max": 8,
+            },
+            "比分(CS)": {
+                "options": 31, "options_desc": "主胜13种(含胜其他)+平5种(含平其他)+客负13种(含负其他)",
+                "single": True, "max_parlay": 4, "free_parlay_max": 4,
+            },
+            "总进球(TG)": {
+                "options": 8, "options_desc": "0/1/2/3/4/5/6/7+(7球及以上)",
+                "single": True, "max_parlay": 6, "free_parlay_max": 6,
+            },
+            "半全场(HF/FT)": {
+                "options": 9, "options_desc": "胜胜/胜平/胜负/平胜/平平/平负/负胜/负平/负负",
+                "single": True, "max_parlay": 4, "free_parlay_max": 4,
+            },
+            "混合过关(Mixed)": {
+                "options": "mixed", "options_desc": "同一运动项目不同比赛的不同玩法组合",
+                "single": False, "single_note": "混合过关不支持单关投注",
+                "max_parlay": "木桶原则:取所含玩法中最低过关上限",
+                "free_parlay_max": "同max_parlay",
+                "restrictions": [
+                    "同一场比赛的不同玩法不能组合",
+                    "不同运动项目不能混合",
+                    "关数上限=所选玩法中最低的max_parlay",
+                ],
+            },
+        },
+        "free_parlay": {
+            "name": "自由过关",
+            "description": "可选择2-8关任意组合,系统自动生成所有N串1组合",
+            "max_matches": 8,
+            "no_banker": True,  # 不支持设胆
+        },
+        "mxn_examples": {
+            "3串3": "C(3,2)=3注 (任意2场对即中奖)",
+            "3串4": "C(3,3)+C(3,2)=4注 (3串1+3个2串1)",
+            "3串7": "C(3,1)+C(3,2)+C(3,3)=7注",
+            "5串10": "C(5,3)=10注",
+            "5串26": "C(5,2)+C(5,3)+C(5,4)+C(5,5)=26注",
+            "6串63": "ΣC(6,i),i=1..6=63注",
+        },
     },
     "beidan": {
         "name": "北京单场",
-        "plays": {
-            "胜平负(含让球)": {"options": 3, "single": True, "max_parlay": 6},
-            "总进球": {"options": 8, "single": True, "max_parlay": 6},
-            "比分": {"options": 25, "single": True, "max_parlay": 3},
-            "半全场": {"options": 9, "single": True, "max_parlay": 3},
-            "上下单双": {"options": 4, "single": True, "max_parlay": 6},
-            "胜负过关": {"options": 2, "single": True, "max_parlay": 15},
-        },
+        "issuer": "北京市体育彩票管理中心",
         "payout_rate": 0.65,
-        "odds_type": "floating_sp",
+        "odds_type": "浮动SP值(floating_sp), 赛后才确定最终SP",
+        "betting_unit": "2元/注",
         "kelly_threshold": 0.08,
-        "prize_cap": None,
+        "prize_formula": "单注奖金=2元×所选场次SP连乘×65%",
+        "prize_cap": None,  # 北单无封顶
+        "plays": {
+            "胜平负(含让球)": {
+                "options": 3, "options_desc": "含让球:主队±1~±5球后的胜平负",
+                "single": True, "max_parlay": 6, "free_parlay_max": 6,
+            },
+            "总进球": {
+                "options": 8, "options_desc": "0/1/2/3/4/5/6/7+",
+                "single": True, "max_parlay": 6, "free_parlay_max": 6,
+            },
+            "比分": {
+                "options": 25, "options_desc": "主胜10种+平5种+客负10种",
+                "single": True, "max_parlay": 3, "free_parlay_max": 3,
+            },
+            "半全场": {
+                "options": 9, "options_desc": "3-3/3-1/3-0/1-3/1-1/1-0/0-3/0-1/0-0",
+                "single": True, "max_parlay": 3, "free_parlay_max": 3,
+            },
+            "上下单双(SXDS)": {
+                "options": 4, "options_desc": "上单(≥3球+奇数)/上双(≥3球+偶数)/下单(<3球+奇数)/下双(<3球+偶数)",
+                "single": True, "max_parlay": 6, "free_parlay_max": 6,
+            },
+            "胜负过关(WL)": {
+                "options": 2, "options_desc": "只猜胜负不含平局,适合强弱分明",
+                "single": True, "max_parlay": 15, "free_parlay_max": 15,
+            },
+        },
+        "special_rules": {
+            "取消场次": "SP值=1 计算(视为正确)",
+            "延期超12小时": "所有选项视为正确,SP=1",
+            "延期不超12小时": "按实际比赛结果计奖",
+        },
+    },
+    "summary": {
+        "total_plays": 12,
+        "竞彩6种": "SPF/RQSPF/CS/TG/HF-FT/Mixed",
+        "北单6种": "SPF(含让球)/TG/CS/HF-FT/SXDS/WL",
+        "key_differences": [
+            "竞彩=固定赔率71%返奖,北单=浮动SP65%返奖",
+            "竞彩有奖金封顶(单场10万→6关+100万),北单无封顶",
+            "北单有胜负过关(15关),竞彩无此玩法",
+            "竞彩30种比分(31-1含胜其他),北单25种比分(10+5+10)",
+            "竞彩有混合过关(可跨玩法),北单无混合过关",
+        ],
     },
 }
 
 @mcp.tool()
 def official_knowledge(lottery_type: str = "all") -> dict:
-    """查询官方彩票规则知识库。包含竞彩和北单全部12种玩法的选项数、过关限制、返奖率等。
+    """查询官方彩票规则知识库。包含竞彩和北单全部12种玩法的选项数、过关限制、返奖率、奖金计算、M串N、自由过关等。
     
     Args:
         lottery_type: jingcai(竞彩) / beidan(北单) / all(全部)
     """
     if lottery_type == "all":
         return {"rules": LOTTERY_RULES, "total_plays": 12,
-                "note": "竞彩6种+北单6种=12种玩法。竞彩固定赔率71%返奖，北单浮动SP值65%返奖。"}
+                "note": "竞彩6种+北单6种=12种玩法。竞彩固定赔率71%返奖(2元×SP连乘)，北单浮动SP值65%返奖(2元×SP连乘×65%)。"}
     return {"rules": {lottery_type: LOTTERY_RULES.get(lottery_type, {})}}
 
 # ===== 25. 让球盘分析器 =====
