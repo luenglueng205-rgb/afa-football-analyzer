@@ -28,6 +28,53 @@ if not LEAGUE_FACTORS:
 
 mcp = FastMCP("afa-football-analyzer")
 
+# ===== 工具函数 =====
+def _banker_round(value: float, decimals: int = 2) -> float:
+    """银行家舍入(四舍六入五成双) — 官方彩票奖金计算标准"""
+    factor = 10 ** decimals
+    scaled = value * factor
+    frac = scaled - int(scaled)
+    if abs(frac - 0.5) < 1e-10:
+        # 5成双: 奇数进,偶数舍
+        if int(scaled) % 2 == 0:
+            return int(scaled) / factor
+        return (int(scaled) + 1) / factor
+    return round(value, decimals)
+
+def _mxn_combinations(m: int, n: int) -> tuple:
+    """M串N组合生成器: 返回(投注数, 关数列表)
+    M串N=N个单关 + C(M,2)个2串1 + ... + C(M,m)个m串1
+    其中m层由N的值隐含决定
+    """
+    import math as _math
+    if n == 1:
+        # M串1: 所有M场选中的1个M串1
+        return 1, [(m, 1)]
+    
+    bets = 0
+    levels = []
+    # M串N中N隐含了最低关数: 
+    # N=3 → 3关(2串1); N=4 → 3串1+2串1
+    # N=7 → 3单+3双+1三 (即1,2,3关全组合)
+    
+    # Find the floor k such that sum(C(M,k) for k...M) can be partitioned
+    # For simplicity, use standard combinations:
+    # M串N: N = C(M, level) combinations
+    for level in range(1, m + 1):
+        combos = _math.comb(m, level)
+        if n >= combos:
+            bets += combos
+            levels.append((level, combos))
+            n -= combos
+            if n == 0:
+                break
+        else:
+            # Partial level not standard — fallback
+            bets += n
+            levels.append((level, n))
+            break
+    return bets, levels
+
 # Load .env file if present, else use os.environ directly
 _ENV_FILE = Path(os.environ.get("AFA_ENV_FILE", (Path(__file__).parent / "configs/.env").resolve()))
 _env_loaded = False
@@ -337,31 +384,117 @@ def score_probability_matrix(home_goals_expected: float, away_goals_expected: fl
 
 # ===== 9. M串N =====
 @mcp.tool()
-def mxn_calculator(matches_sp: list, m: int, n: int = 1, stake: float = 100, lottery_type: str = "jingcai") -> dict:
-    """M串N组合计算+奖金。自动处理竞彩封顶(2-3关20万/4-5关50万/6关+100万)及北单65%返奖率。"""
+def mxn_calculator(matches_sp: list, m: int, n: int = 1, stake_per_bet: int = 2, 
+                   lottery_type: str = "jingcai", play_type: str = "SPF") -> dict:
+    """M串N组合计算+奖金(官方规则:2元/注,银行家舍入,含封顶)。
+    
+    M串N含C(M,2)+C(M,3)+...共N注,不是单一M串1
+    
+    Args:
+        matches_sp: 各场次的SP值列表
+        m: 选择的总场次数
+        n: N值(1=M串1,3=3串3,4=3串4,7=3串7,10=5串10,26=5串26...)
+        stake_per_bet: 每注金额(默认2元)
+        lottery_type: jingcai/beidan
+        play_type: 玩法类型(SPF/RQSPF/CS/TG/HF/SXDS/WL/Mixed)
+    
+    M串N对照:
+        3串3=C(3,2)=3注2串1 | 3串4=1个3串1+3个2串1=4注
+        3串7=3单+3双+1三=7注 | 5串10=C(5,3)=10注3串1
+        5串26=C(5,2..5)=26注 | 6串63=6+15+20+15+6+1=63注
+    """
+    import math as _math
     from itertools import combinations
-    import numpy as np
-    if len(matches_sp) < m: return {"error": f"需至少{m}场"}
-    combos = list(combinations(range(len(matches_sp)), m))
-    rate = 0.65 if lottery_type.lower() == "beidan" else 1.0
+    
+    if len(matches_sp) < m:
+        return {"error": f"需至少{m}场,当前{len(matches_sp)}场"}
+    
+    # Determine which combination levels to include
+    # Standard M串N formulas
+    mxn_map = {
+        # (m,n): [关数列表]
+        (3,1): [3], (3,3): [2], (3,4): [3,2], (3,7): [1,2,3],
+        (4,1): [4], (4,4): [3], (4,5): [4,3], (4,6): [2], (4,11): [4,3,2],
+        (5,1): [5], (5,5): [4], (5,6): [5,4], (5,10): [3], (5,16): [5,4,3],
+        (5,20): [3,2], (5,26): [2,3,4,5],
+        (6,1): [6], (6,6): [5], (6,7): [6,5], (6,15): [4], (6,20): [4,3],
+        (6,22): [6,5,4], (6,35): [5,4,3], (6,42): [6,5,4,3],
+        (6,50): [6,5,4,3,2], (6,57): [6,5,4,3,2,1], (6,63): [1,2,3,4,5,6],
+        (7,1): [7], (7,7): [6], (7,8): [7,6], (7,21): [5], (7,35): [4],
+        (7,120): [4,3,2],
+        (8,1): [8], (8,8): [7], (8,9): [8,7], (8,28): [6], (8,56): [5],
+        (8,70): [4], (8,247): [5,4,3,2],
+    }
+    
+    # Play-type max parlay limits
+    parlay_limits = {"SPF":8,"RQSPF":8,"CS":4,"TG":6,"HF":4,"SXDS":6,"WL":15,"Mixed":8}
+    max_parlay = parlay_limits.get(play_type, 8)
+    
+    play_levels = mxn_map.get((m, n))
+    if not play_levels:
+        # Fallback: if n==1, it's just the m串1
+        if n == 1:
+            play_levels = [m]
+        else:
+            return {"error": f"不支持的M串N组合: {m}串{n}", "supported": list(mxn_map.keys())}
+    
+    # Filter levels that exceed play type limits
+    valid_levels = [lv for lv in play_levels if lv <= max_parlay]
+    if not valid_levels:
+        return {"error": f"{play_type}玩法最高{max_parlay}关,M{m}串{n}所有组合都超限"}
+    
+    # Calculate all combinations
+    rate = 0.65 if lottery_type == "beidan" else 1.0
     limits = {1:100000, 2:200000, 3:200000, 4:500000, 5:500000, 6:1000000, 7:1000000, 8:1000000}
-    max_limit = limits.get(m, 200000)
+    
+    total_bets = 0
+    total_stake = 0
     details = []
-    for combo in combos:
-        sp = np.prod([matches_sp[i] for i in combo]) * rate
-        # 竞彩奖金=2元×SP连乘, 北单=2元×SP连乘×65%
-        prize_mult = 2 * sp  # 每注2元的奖金
-        if prize_mult > max_limit:
-            prize_mult = max_limit  # 封顶
-        # 银行家舍入(四舍六入五成双)
-        prize_mult = round(prize_mult, 2)
-        actual_prize = round(stake * prize_mult / 2, 0)
-        details.append({"combo": list(combo), "sp": round(sp, 2), 
-                        "prize_per_2yuan": prize_mult,
-                        "actual_prize": actual_prize,
-                        "note": "已封顶" if 2*sp > max_limit else None})
-    return {"type": f"{m}串{n}", "lottery": lottery_type, "combos": len(combos),
-            "max_prize": max(d['prize_per_2yuan'] for d in details) if details else 0, "samples": details[:3]}
+    best_prize = 0
+    
+    for level in valid_levels:
+        max_limit = limits.get(level, 200000)
+        # Generate all combination of 'level' matches from 'm'
+        combos = list(combinations(range(m), level))
+        for combo in combos:
+            sp = 1.0
+            for i in combo:
+                sp *= matches_sp[i]
+            sp *= rate
+            prize_per_bet = _banker_round(2 * sp, 2)
+            if prize_per_bet > max_limit:
+                prize_per_bet = float(max_limit)  # 封顶
+            total_bets += 1
+            total_stake += stake_per_bet
+            if prize_per_bet > best_prize:
+                best_prize = prize_per_bet
+        
+        # Sample one combo
+        if combos:
+            sample = combos[0]
+            sp_sample = 1.0
+            for i in sample:
+                sp_sample *= matches_sp[i]
+            sp_sample *= rate
+            details.append({
+                "level": f"{level}串1", 
+                "count": len(combos),
+                "sample_sp": round(sp_sample, 2),
+                "sample_prize": _banker_round(2 * sp_sample, 2),
+            })
+    
+    return {
+        "type": f"{m}串{n}",
+        "lottery": lottery_type,
+        "play_type": play_type,
+        "total_bets": total_bets,
+        "total_stake": total_stake,
+        "stake_per_bet": stake_per_bet,
+        "levels": valid_levels,
+        "best_prize": best_prize,
+        "details": details,
+        "note": f"官方:2元/注×SP连乘(银行家舍入),{'竞彩封顶' if lottery_type=='jingcai' else '北单无封顶'}"
+    }
 
 # ===== 10. 串关优化 =====
 @mcp.tool()
@@ -396,6 +529,45 @@ def parlay_optimizer(matches: list, lottery_type: str = "jingcai", budget: float
                         "matches": [m.get('name', m.get('match','?')) for m in valid[:k]],
                         "risk": "低" if k<=2 else ("中" if k<=4 else "高")})
     return {"lottery": lottery_type, "valid_count": len(valid), "threshold_used": th, "recommendations": results}
+
+# ===== 自由过关计算器 =====
+@mcp.tool()
+def free_parlay_calc(matches: int, min_level: int = 2, max_level: int = None,
+                     play_type: str = "SPF") -> dict:
+    """自由过关计算器 — 选N场投X-Y关,自动计算注数和投注金额(2元/注)。
+    竞彩:SPF/RQSPF最高8关,TG最高6关,CS/HF最高4关. 不支持设胆.
+    
+    Args:
+        matches: 比赛场数(2-8)
+        min_level: 最低关数(默认2)
+        max_level: 最高关数
+        play_type: 玩法(SPF=8关,TG=6关,CS=4关,HF=4关,WL=15关)
+    """
+    import math as _math
+    play_limits = {"SPF":8,"RQSPF":8,"CS":4,"TG":6,"HF":4,"SXDS":6,"WL":15}
+    play_limit = play_limits.get(play_type, 8)
+    if matches > 8 or matches < 2:
+        return {"error": "场数需在2-8之间"}
+    if max_level is None:
+        max_level = min_level
+    max_level = min(max_level, matches, play_limit)
+    min_level = max(2, min_level)
+    if min_level > max_level:
+        return {"error": f"最低关{min_level}>最高关{max_level}"}
+    total_bets = 0
+    levels_detail = []
+    for level in range(min_level, max_level + 1):
+        combos = _math.comb(matches, level)
+        total_bets += combos
+        levels_detail.append({"level": f"{level}串1", "combinations": combos})
+    return {
+        "matches": matches, "play_type": play_type, "play_limit": play_limit,
+        "levels": f"{min_level}-{max_level}关",
+        "total_bets": total_bets, "total_stake": total_bets * 2,
+        "details": levels_detail,
+        "formula": f"ΣC({matches},k) for k={min_level}..{max_level}",
+        "note": f"每注2元,共{total_bets}注×2={total_bets*2}元. 不支持设胆"
+    }
 
 # ===== 11. 进化反馈 =====
 @mcp.tool()
@@ -439,8 +611,8 @@ def beidan_sxds_analyzer(lam_total: float, league_name: str = "") -> dict:
 
 # ===== 14. 资金管理 =====
 @mcp.tool()
-def bankroll_calculator(bankroll: float, risk_level: str = "medium", num_bets: int = 3) -> dict:
-    """资金管理计算。按风险等级输出单场/日/周限度。"""
+def bankroll_calculator(bankroll: float, risk_level: str = "medium", num_bets: int = 3, lot_size: int = 2) -> dict:
+    """资金管理计算。按风险等级输出单场/日/周限度。投注单位:2元/注。"""
     pcts = {"low": (0.01, 0.02), "medium": (0.02, 0.05), "high": (0.05, 0.08)}
     lo, hi = pcts.get(risk_level, (0.02, 0.05))
     return {"bankroll": bankroll, "per_bet": [round(bankroll*lo, 0), round(bankroll*hi, 0)],
@@ -504,7 +676,7 @@ def scrape_500_beidan(date: str = "") -> dict:
             return {"ok": False, "error": f"HTTP{resp.status_code}" if resp.status_code != 200 else "empty"}
         matches = _parse_500_html(html, lottery_type="beidan")
         return {"ok": True, "source": "500.com/beidan", "match_count": len(matches), "matches": matches,
-                "note": "Structured JSON — includes 场次/赛事/主队/客队/让球/SP/状态"}
+                "note": "⚠️ 北单SP为浮动参考值,最终SP赛后确定。投注奖金=2元×最终SP连乘×65%"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -563,7 +735,7 @@ def monte_carlo_simulator(home_lam: float, away_lam: float, iterations: int = 50
 
 # ===== 18. 智能选票 =====
 @mcp.tool()
-def smart_bet_selector(matches: list, lottery_type: str = "jingcai", 
+def smart_bet_selector(matches: list, lottery_type: str = "jingcai", stake_per_bet: int = 2, 
                         min_kelly: float = 0.05, min_confidence: float = 60,
                         min_sp: float = 1.20, max_sp: float = 4.0) -> dict:
     """智能选票筛选器。从多场比赛中筛选出价值投注，按EV/Kelly排序。
