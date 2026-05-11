@@ -26,6 +26,11 @@ _TEAM_FORM = _load_json_data("team_form_index.json", {})
 _LEAGUE_CARDS = _load_json_data("league_card_stats.json", {})
 _HALFTIME_PATTERNS = _load_json_data("halftime_patterns.json", {})
 
+_H2H_INDEX = _load_json_data("h2h_index.json", {})
+_TEAM_FORM = _load_json_data("team_form_index.json", {})
+_LEAGUE_CARDS = _load_json_data("league_card_stats.json", {})
+_HALFTIME_PATTERNS = _load_json_data("halftime_patterns.json", {})
+
 
 
 def _load_json(name: str) -> dict:
