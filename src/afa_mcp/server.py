@@ -201,6 +201,79 @@ for env_path in [_ENV_FILE, Path("/Users/jand/Projects/afa-mcp-server/configs/.e
         _env_loaded = True
         break
 
+# ===== 统一历史数据引擎 (单一实例,所有工具共享) =====
+import zipfile as _zipfile
+import json as _json
+
+class _HistoricalData:
+    """15.9万场历史数据统一访问层 — 懒加载+内存缓存"""
+    _instance = None
+    _data = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def _load(self):
+        if self._data is not None:
+            return
+        # Search paths for the zip file
+        paths = [
+            DATA_DIR / "INTEGRATED_COMPLETE_DATA.json.zip",
+            Path("/Users/jand/Desktop/INTEGRATED_COMPLETE_DATA.json.zip"),
+            Path("/Users/jand/Desktop/Football/INTEGRATED_COMPLETE_DATA.json.zip"),
+        ]
+        for p in paths:
+            if p.exists():
+                try:
+                    with _zipfile.ZipFile(p) as z:
+                        with z.open('INTEGRATED_COMPLETE_DATA.json') as f:
+                            self._data = _json.load(f)
+                    return
+                except Exception:
+                    continue
+        self._data = {"matches": [], "metadata": {}}
+    
+    def count(self) -> int:
+        self._load()
+        return len(self._data.get("matches", []))
+    
+    def team_recent(self, team: str, n: int = 10) -> list:
+        """球队最近N场比赛"""
+        self._load()
+        matches = [m for m in self._data["matches"]
+                   if (m.get("home_team","") == team or m.get("away_team","") == team)
+                   and m.get("home_goals") is not None]
+        matches.sort(key=lambda x: x.get("date",""), reverse=True)
+        return matches[:n]
+    
+    def h2h(self, home: str, away: str, n: int = 10) -> list:
+        """两队历史交锋"""
+        self._load()
+        h2h = [m for m in self._data["matches"]
+               if (m.get("home_team","") == home and m.get("away_team","") == away)
+               or (m.get("home_team","") == away and m.get("away_team","") == home)]
+        h2h.sort(key=lambda x: x.get("date",""), reverse=True)
+        return h2h[:n]
+    
+    def query(self, **filters) -> list:
+        """通用查询: league_name, date_from, date_to, home_team, away_team"""
+        self._load()
+        results = self._data["matches"]
+        if filters.get("league_name"):
+            results = [m for m in results if m.get("league_name") == filters["league_name"]]
+        if filters.get("home_team"):
+            results = [m for m in results if m.get("home_team") == filters["home_team"]]
+        return results
+    
+    def all(self) -> list:
+        self._load()
+        return self._data.get("matches", [])
+
+HIST = _HistoricalData()
+
+
 # ===== 1. ELO评分 =====
 @mcp.tool()
 def elo_calculate(home_elo: float, away_elo: float,
@@ -2010,16 +2083,16 @@ def multi_kelly_allocator(matches: list, bankroll: float = 10000, lottery_type: 
 # ===== P0-1: 真实历史回测 =====
 @mcp.tool()
 def real_backtest(kelly_min: float = 0.05, max_odds: float = 3.0, min_matches: int = 100,
-                  league: str = "", years: str = "2024-2026") -> dict:
+                  league: str = "", years: str = "2024-2026", flat_stake: float = 100) -> dict:
     """真实历史回测 — 用15.9万场赛果+多庄家赔率验证策略。非随机模拟,每笔都有真实记录。
     """
     import math as _math
-    data = {"matches": HIST.load()}
+    data = {"matches": HIST.all()}
     if not data["matches"]:
         return {"error": "历史数据文件未找到"}
     
     bank = 10000; bets = wins = 0; curve = [bank]; max_dd = 0
-    rate = 0.71  # 竞彩返奖
+    rate = _rate("jingcai")  # 竞彩返奖(70%)
     
     for m in data["matches"]:
         odds_data = m.get("three_way_odds", {}).get("closing", {})
