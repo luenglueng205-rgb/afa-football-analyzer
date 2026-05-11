@@ -2011,67 +2011,45 @@ def real_backtest(kelly_min: float = 0.05, max_odds: float = 3.0, min_matches: i
 # ===== P0-2: 价值扫描器 =====
 @mcp.tool()
 def value_scanner() -> dict:
-    """价值投注扫描器 — 自动扫描竞彩+北单upcoming场次,找出所有+EV投注机会。
-    输出按Kelly排序的投注列表,可直接用于bet_slip生成投注单。
-    """
-    jc = scrape_500_jczq()
-    bd = scrape_500_beidan()
-    
+    """价值投注扫描器 — 自动扫描竞彩+北单upcoming场次,找出所有+EV投注机会。"""
     opportunities = []
-    
-    # Scan 竞彩
+    jc = scrape_500_jczq()
     for m in (jc.get("matches", []) if jc.get("ok") else []):
         if m.get("status") != "upcoming": continue
-        sp_h = float(m.get("sp_h", 99))
-        sp_d = float(m.get("sp_d", 99))
-        sp_a = float(m.get("sp_a", 99))
+        try: sp_h = float(m.get("sp_h", 99))
+        except: continue
         if sp_h < 1.10 or sp_h > 6.0: continue
-        
         cal = odds_calibration_lookup(sp_h)
-        kelly_r = kelly_analyze(float(cal["actual_win_rate"]), float(sp_h), "jingcai")
-        
-        if kelly_r.get("recommended"):
-            opportunities.append({
-                "source": "竞彩", "match": f"{m['home']} vs {m['away']}",
-                "league": m.get("league",""), "time": m.get("time",""),
-                "play": "胜平负-主胜", "sp": sp_h,
-                "true_prob": round(cal["actual_win_rate"],4),
-                "edge_pct": round(edge*100,1),
-                "kelly": kelly_r["kelly_fraction"],
-                "quarter_kelly_stake": kelly_r["quarter_kelly"],
-            })
-    
-    # Scan 北单 upcoming
+        try:
+            wr = float(cal["actual_win_rate"])
+            kelly_r = kelly_analyze(wr, sp_h, "jingcai")
+            if kelly_r.get("recommended"):
+                opportunities.append({
+                    "source":"竞彩","match":f"{m['home']} vs {m['away']}",
+                    "sp":sp_h,"true_prob":round(wr,4),"kelly":kelly_r["kelly_fraction"],
+                })
+        except: continue
+    bd = scrape_500_beidan()
     for m in (bd.get("matches", []) if bd.get("ok") else []):
         if m.get("status") != "upcoming": continue
-        sp_h = float(m.get("sp_h", 99))
+        try: sp_h = float(m.get("sp_h", 99))
+        except: continue
         if sp_h < 1.10 or sp_h > 6.0: continue
         cal = odds_calibration_lookup(sp_h)
-        kelly_r = kelly_analyze(float(cal["actual_win_rate"]), float(sp_h), "beidan")
-        
-        if kelly_r.get("recommended"):
-            opportunities.append({
-                "source": "北单", "match": f"{m['home']} vs {m['away']}",
-                "league": m.get("league",""), "time": m.get("time",""),
-                "handicap": m.get("handicap","0"),
-                "play": "胜平负(含让球)-主胜", "sp": sp_h,
-                "true_prob": round(cal["actual_win_rate"],4),
-                "kelly": kelly_r["kelly_fraction"],
-                "quarter_kelly_stake": kelly_r["quarter_kelly"],
-                "note": "⚠️北单SP浮动"
-            })
-    
+        try:
+            wr = float(cal["actual_win_rate"])
+            kelly_r = kelly_analyze(wr, sp_h, "beidan")
+            if kelly_r.get("recommended"):
+                opportunities.append({
+                    "source":"北单","match":f"{m['home']} vs {m['away']}",
+                    "sp":sp_h,"true_prob":round(wr,4),"kelly":kelly_r["kelly_fraction"],
+                })
+        except: continue
     opportunities.sort(key=lambda x: -x["kelly"])
-    top = opportunities[:10]
-    
     return {
-        "total_scanned": (jc.get("match_count",0) if jc.get("ok") else 0) + 
-                         (bd.get("match_count",0) if bd.get("ok") else 0),
-        "value_opportunities": len(opportunities),
-        "top_picks": top,
-        "recommended_action": "用bet_slip生成投注单" if opportunities else "当前无价值投注机会"
+        "scanned":(jc.get("match_count",0)if jc.get("ok")else 0)+(bd.get("match_count",0)if bd.get("ok")else 0),
+        "value_count":len(opportunities),"top_picks":opportunities[:10]
     }
-
 # ===== P0-3: 对战历史(H2H) =====
 @mcp.tool()
 def h2h_analyzer(home_team: str, away_team: str, last_n: int = 10) -> dict:
