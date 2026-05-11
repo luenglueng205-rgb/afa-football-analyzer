@@ -2307,26 +2307,17 @@ def full_report(lottery_type: str = "all", max_matches: int = 5, bankroll: float
         for m in up:
             try:
                 e = {"match":str(m.get("home","?"))+" vs "+str(m.get("away","?")),"league":str(m.get("league","")),"time":str(m.get("time",""))}
-                sp_h,sp_d,sp_a = float(m["sp_h"]),float(m["sp_d"]),float(m["sp_a"])
-                he_r = get_team_elo(m["home"])["results"]; ae_r = get_team_elo(m["away"])["results"]
+                sp_h = float(m["sp_h"]); sp_d = float(m["sp_d"]); sp_a = float(m["sp_a"])
+                he_r = get_team_elo(str(m["home"]))["results"]; ae_r = get_team_elo(str(m["away"]))["results"]
                 he = float(he_r[0]["elo"]) if he_r else 1500.0; ae = float(ae_r[0]["elo"]) if ae_r else 1500.0
                 ep = 1.0/(1.0+10.0**((ae-he-65.0)/400.0))
-                kh = kelly_analyze(ep, sp_h, "jingcai")
-                imp = odds_implied_probabilities(sp_h,sp_d,sp_a)
-                lf = get_league_factor(str(m.get("league","")))
-                fac = lf.get("factors") if isinstance(lf,dict) else None
-                lt = float((fac or {}).get("avg_goals", 2.5))
-                sm = score_probability_matrix(lt*0.55, lt*0.45)
-                gd = sm.get("goals_dist",{})
-                o25 = round(sum(float(gd.get(str(i),0) or 0) for i in range(3,17)),3)
-                hf = half_full_analyzer(float(ep), 0.22, float(1.0-ep-0.22))
-                e["spf"] = {"odds":[sp_h,sp_d,sp_a],"elo_win":round(ep,3),"implied":round(imp.get("implied_home",0.5),3),"kelly":round(kh.get("kelly_fraction",0),4),"pick":"主胜" if kh.get("recommended") else ("客胜" if ep<0.35 else "观望")}
-                e["tg"] = {"avg_goals":round(lt,1),"over25":o25,"pick":"大球" if o25>0.5 else "小球","top_goals":sorted([(k,round(float(v),3)) for k,v in gd.items() if float(v)>0.01],key=lambda x:-x[1])[:3]}
-                e["hf"] = {"best":hf.get("best_pick",""),"prob":hf.get("best_prob",0)}
+                imp = odds_implied_probabilities(sp_h, sp_d, sp_a)
+                kh = kelly_analyze(float(ep), sp_h, "jingcai")
+                e["spf"] = {"odds":[sp_h,sp_d,sp_a],"elo":round(ep,3),"implied":round(float(imp["implied_home"]),3),"kelly":round(float(kh.get("kelly_fraction",0)),4),"pick":"主胜" if kh.get("recommended") else ("客胜" if ep<0.35 else "观望")}
                 if kh.get("recommended"): picks.append({"name":e["match"],"kelly_h":kh["kelly_fraction"],"sp_h":sp_h,"prob_h":ep})
                 jc_out.append(e)
-            except Exception as ex: jc_out.append({"match":str(m.get("home","?"))+" vs "+str(m.get("away","?")),"error":str(ex)[:80]})
-        par = parlay_optimizer(picks,"jingcai",bankroll) if len(picks)>=2 else {"valid_count":len(picks),"note":"需至少2场正EV"}
+            except Exception as ex: jc_out.append({"match":str(m.get("home",""))+" vs "+str(m.get("away","")),"error":str(ex)[:100]})
+        par = parlay_optimizer(picks,"jingcai",float(bankroll)) if len(picks)>=2 else {"valid_count":len(picks),"note":"需至少2场正EV"}
         r["sections"].append({"lottery":"竞彩足球","value_picks":len(picks),"matches":jc_out,"parlay":par})
     if lottery_type in ("all","beidan"):
         bd = scrape_500_beidan()
