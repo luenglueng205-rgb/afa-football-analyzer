@@ -462,7 +462,7 @@ def get_team_elo(team_name: str, league: str = "") -> dict:
     # Strategy 2: League-context aware (if league is provided)
     full_league = LEAGUE_NAME_MAP.get(league, league)
     if not matches and league:
-        league_english_teams = LEAGUE_TEAM_MAP.get(full_league, LEAGUE_TEAM_MAP.get(league, []))
+        league_english_teams = LEAGUE_TEAM_MAP.get(full_league, LEAGUE_TEAM_MAP.get(league, [])) if isinstance(LEAGUE_TEAM_MAP, dict) else []
         league_english_teams = LEAGUE_TEAM_MAP[league]
         # Try matching the Chinese name against English team names in this league
         for et in league_english_teams:
