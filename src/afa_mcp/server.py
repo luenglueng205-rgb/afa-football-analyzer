@@ -345,43 +345,91 @@ def get_league_factor(league_name: str) -> dict:
 # Chinese→English ELO team name mapping
 ELO_NAME_MAP = {
     # 五大联赛
-    "阿贾克斯": "Ajax", "AC米兰": "Milan", "国际米兰": "Inter Milan",
-    "尤文图斯": "Juventus", "那不勒斯": "Napoli", "罗马": "Roma", "亚特兰大": "Atalanta",
-    "都灵": "Torino", "拉齐奥": "Lazio", "佛罗伦萨": "Fiorentina", "博洛尼亚": "Bologna",
+    "AC米兰": "Milan", "国际米兰": "Inter", "尤文图斯": "Juventus", "那不勒斯": "Napoli", 
+    "罗马": "Roma", "亚特兰大": "Atalanta", "都灵": "Torino", "拉齐奥": "Lazio",
+    "佛罗伦萨": "Fiorentina", "博洛尼亚": "Bologna", "热那亚": "Genoa", "乌迪内斯": "Udinese",
+    "卡利亚里": "Cagliari", "莱切": "Lecce", "帕尔马": "Parma", "维罗纳": "Verona",
     "巴萨": "Barcelona", "皇马": "Real Madrid", "马竞": "Atletico Madrid",
-    "塞维利亚": "Sevilla", "贝蒂斯": "Real Betis", "皇家社会": "Real Sociedad",
-    "拜仁": "Bayern Munich", "多特蒙德": "Borussia Dortmund",
-    "巴黎圣日耳曼": "Paris Saint-Germain", "巴黎": "Paris Saint-Germain",
-    "马赛": "Marseille", "里昂": "Lyon", "摩纳哥": "Monaco",
-    "曼城": "Manchester City", "曼联": "Manchester United", "阿森纳": "Arsenal",
+    "塞维利亚": "Sevilla", "贝蒂斯": "Betis", "皇家社会": "Sociedad",
+    "毕尔巴鄂": "Athletic Bilbao", "巴列卡诺": "Rayo Vallecano", "赫罗纳": "Girona",
+    "马略卡": "Mallorca", "奥萨苏纳": "Osasuna", "西班牙人": "Espanol",
+    "拜仁": "Bayern Munich", "多特蒙德": "Dortmund", "莱比锡": "RB Leipzig",
+    "勒沃库森": "Leverkusen", "法兰克福": "Ein Frankfurt", "斯图加特": "Stuttgart",
+    "沃尔夫斯堡": "Wolfsburg", "门兴": "M'gladbach", "弗赖堡": "Freiburg",
+    "美因茨": "Mainz", "柏林联合": "Union Berlin", "科隆": "Koln", "海登海姆": "Heidenheim",
+    "霍芬海姆": "Hoffenheim", "奥格斯堡": "Augsburg", "汉堡": "Hamburg",
+    "圣保利": "St Pauli", "云达不莱梅": "Werder Bremen",
+    "巴黎圣日耳曼": "Paris SG", "巴黎": "Paris SG", "马赛": "Marseille", 
+    "里昂": "Lyon", "摩纳哥": "Monaco", "里尔": "Lille", "雷恩": "Rennes",
+    "朗斯": "Lens", "尼斯": "Nice", "斯特拉斯堡": "Strasbourg", 
+    "南特": "Nantes", "蒙彼利埃": "Montpellier",
+    "曼城": "Man City", "曼联": "Man United", "阿森纳": "Arsenal",
     "利物浦": "Liverpool", "切尔西": "Chelsea", "热刺": "Tottenham",
-    # 德甲中下游
-    "西汉姆联": "West Ham", "科隆": "Koln", "海登海姆": "Heidenheim",
-    "美因茨": "Mainz", "柏林联合": "Union Berlin", "莱比锡": "RB Leipzig",
-    "勒沃库森": "Bayer Leverkusen", "沃尔夫斯堡": "Wolfsburg", "斯图加特": "Stuttgart",
-    # 其他欧洲
-    "奥林匹亚科斯": "Olympiacos", "塞萨洛尼基": "PAOK",
-    "亚布洛内茨": "Jablonec", "赫拉德茨": "Hradec Kralove",
-    "亨克": "Genk", "韦斯特洛": "Westerlo", "布鲁日": "Club Brugge",
-    "埃因霍温": "PSV Eindhoven", "费耶诺德": "Feyenoord",
+    "纽卡斯尔联": "Newcastle", "阿斯顿维拉": "Aston Villa", "西汉姆联": "West Ham",
+    "埃弗顿": "Everton", "富勒姆": "Fulham", "水晶宫": "Crystal Palace",
+    "狼队": "Wolves", "伯恩茅斯": "Bournemouth", "诺丁汉森林": "Nott'm Forest",
+    "桑德兰": "Sunderland", "利兹联": "Leeds", "伯恩利": "Burnley",
+    # 葡超
+    "本菲卡": "Benfica", "波尔图": "Porto", "葡萄牙体育": "Sporting",
+    "里斯本": "Sporting Lisbon", "布拉加": "Braga", "吉马良斯": "Guimaraes",
+    # 荷甲
+    "阿贾克斯": "Ajax", "埃因霍温": "PSV Eindhoven", "费耶诺德": "Feyenoord",
+    "特温特": "Twente", "阿尔克马尔": "AZ Alkmaar",
+    # 苏超
+    "凯尔特人": "Celtic", "流浪者": "Rangers", "阿伯丁": "Aberdeen",
+    # 比甲
+    "布鲁日": "Club Brugge", "亨克": "Genk", "安德莱赫特": "Anderlecht",
+    "安特卫普": "Antwerp", "根特": "Gent", "标准列日": "Standard Liege",
+    # 土超/希腊/捷克
+    "加拉塔萨雷": "Galatasaray", "费内巴切": "Fenerbahce",
+    "奥林匹亚科斯": "Olympiakos", "雅典AEK": "AEK Athens",
+    "帕纳辛纳科斯": "Panathinaikos", "塞萨洛尼基": "PAOK",
+    "布拉格斯拉维亚": "Slavia Prague", "布拉格斯巴达": "Sparta Prague",
+    "比尔森": "Plzen",
     # 日韩
-    "横滨水手": "Yokohama F. Marinos", "浦和红钻": "Urawa Red Diamonds",
-    "鹿岛鹿角": "Kashima Antlers", "川崎前锋": "Kawasaki Frontale",
-    "全北现代": "Jeonbuk Hyundai", "蔚山HD": "Ulsan HD",
+    "横滨水手": "Yokohama FM", "浦和红钻": "Urawa Reds",
+    "鹿岛鹿角": "Kashima Antlers", "川崎前锋": "Kawasaki",
+    "广岛三箭": "Sanfrecce", "神户胜利船": "Vissel Kobe",
+    "全北现代": "Jeonbuk", "蔚山HD": "Ulsan",
     # 南美
     "博卡青年": "Boca Juniors", "河床": "River Plate",
     "弗拉门戈": "Flamengo", "帕尔梅拉斯": "Palmeiras",
+    "科林蒂安": "Corinthians", "桑托斯": "Santos", "圣保罗": "Sao Paulo",
+    "格雷米奥": "Gremio", "米内罗竞技": "Atletico-MG",
+    # 美职
+    "迈阿密国际": "Inter Miami", "洛杉矶FC": "Los Angeles FC",
+    "亚特兰大联": "Atlanta United", "纽约城": "NY City",
+    # 沙职/瑞超/挪超
+    "利雅得青年": "Al Shabab", "吉达国民": "Al Ahli",
+    "马尔默": "Malmo", "赫根": "Hacken", "索尔纳": "AIK Stockholm",
+    "哈马比": "Hammarby", "埃尔夫斯堡": "Elfsborg",
+    "莫尔德": "Molde", "罗森博格": "Rosenborg", "博德闪耀": "Bodo Glimt",
+    # 奥地利/瑞士
+    "萨尔茨堡红牛": "Salzburg", "格拉茨风暴": "Sturm Graz",
+    "年轻人": "Young Boys", "巴塞尔": "Basel", "卢加诺": "Lugano",
+    # 波兰/捷克/丹麦
+    "华沙莱吉亚": "Legia", "哥本哈根": "FC Copenhagen",
+    "中日德兰": "Midtjylland", "布隆德比": "Brondby",
 }
 # ===== 7. ELO查询 =====
 @mcp.tool()
 def get_team_elo(team_name: str) -> dict:
-    """从1062队ELO数据库查询球队评级。支持中英文模糊匹配。"""
+    """从670队ELO数据库查询球队评级。支持中英文模糊匹配+智能回退。"""
     # Try Chinese→English mapping first
     search_name = ELO_NAME_MAP.get(team_name, team_name)
     matches = [(k, v) for k, v in ELO_DB.items() if search_name.lower() in k.lower()]
     if not matches:
-        # Fallback: try original Chinese name
+        # Try original Chinese name
         matches = [(k, v) for k, v in ELO_DB.items() if team_name.lower() in k.lower()]
+    if not matches:
+        # Fuzzy: try partial word matches (e.g. "新未来SC" tries "新未来")
+        for part in team_name.replace('SC','').replace('FC','').split():
+            if len(part) >= 2:
+                matches = [(k, v) for k, v in ELO_DB.items() if part.lower() in k.lower()]
+                if matches: break
+    if not matches:
+        # Ultimate fallback: return league-average ELO
+        return {"query": team_name, "results": [{"team": team_name, "elo": 1500.0, "note": "无数据,使用默认1500"}], "total": 0, "fallback": True}
     return {"query": team_name, "results": [{"team": k, "elo": round(v,1)} for k,v in sorted(matches, key=lambda x:-x[1])[:10]], "total": len(matches)}
 
 # ===== 8. 比分全景矩阵 =====
