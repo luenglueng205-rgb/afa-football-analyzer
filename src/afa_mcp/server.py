@@ -1626,7 +1626,7 @@ def backtest(matches: int = 100, min_kelly: float = 0.05, league_filter: str = "
         # Simulate a match with random odds from calibration range
         bucket_idx = random.randint(0, min(60, len(ODDS_CAL) - 1))
         bucket = ODDS_CAL[bucket_idx]
-        odds = bucket["odds_max"] - 0.02
+        odds = bucket["odds_max"]
         true_prob = bucket["actual_win_rate"]
         implied = 1.0 / odds if odds > 0 else 0.5
         edge = true_prob - implied
