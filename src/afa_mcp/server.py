@@ -442,7 +442,7 @@ def get_team_elo(team_name: str, league: str = "") -> dict:
         league_english_teams = LEAGUE_TEAM_MAP[league]
         # Try matching the Chinese name against English team names in this league
         for et in league_english_teams:
-            if team_name.lower() in et.lower() or any(c in et.lower() for c in team_name if len(c) >= 2):
+            if team_name.lower() in et.lower() or any(c in et.lower() for c in team_name.replace(' ','') if ord(c) > 127 or len(c) >= 2):
                 if et in ELO_DB:
                     matches.append((et, ELO_DB[et]))
         if matches:
