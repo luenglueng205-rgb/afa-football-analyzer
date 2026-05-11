@@ -196,14 +196,15 @@ def think_match(home_team: str, away_team: str,
     elo_prob = 1.0 / (1.0 + 10.0 ** ((away_elo - home_elo - 65.0) / 400.0))
     kelly_r = kelly_analyze(elo_prob, odds_home, lottery_type="jingcai")
     
-    # Layer 2: Score matrix — league-adaptive λ split
+    # Layer 2: Score matrix — ELO-aware + league-adaptive λ split
     factors = lf.get('factors') or {}
     lam_total = factors.get('avg_goals', 2.5)
     home_win_rate = factors.get('home_win', 0.42)
-    # Home advantage ratio derived from league's actual home win rate (15.9万场实测)
-    # 西甲48.8%→home_ratio=0.544, 英冠41.7%→home_ratio=0.509
-    home_ratio = 0.5 + (home_win_rate - 0.40) * 0.5
-    home_ratio = max(0.45, min(0.55, home_ratio))  # clamp
+    # Blend league home_win_rate with ELO probability for team-specific λ
+    league_ratio = 0.5 + (home_win_rate - 0.40) * 0.5
+    elo_ratio = 0.5 + (elo_prob - 0.50) * 0.6  # ELO contribution scaled
+    # 60% ELO + 40% league for team-specific scoring
+    home_ratio = 0.4 * max(0.45, min(0.55, league_ratio)) + 0.6 * max(0.35, min(0.65, elo_ratio))
     home_lam = lam_total * home_ratio
     away_lam = lam_total * (1 - home_ratio)
     score_r = score_probability_matrix(home_lam, away_lam)
@@ -254,10 +255,27 @@ def think_match(home_team: str, away_team: str,
     if hint:
         insights.append(f"联赛特征：{hint}")
     
-    # Score insight
-    top_scores = score_r.get('top_scores', [])[:3] if 'top_scores' in score_r else []
-    score_text = ', '.join([f"{s[0]}({float(s[1])*100:.0f}%)" for s in top_scores]) if top_scores else "待计算"
+    # Score insight: generate top scores from goals_dist
+    goals_dist = score_r.get('goals_dist', {})
+    top_scores_list = []
+    for h in range(9):
+        for a in range(9):
+            p = (home_lam**h * math.exp(-home_lam) / math.factorial(h)) * \
+                (away_lam**a * math.exp(-away_lam) / math.factorial(a))
+            top_scores_list.append((f"{h}-{a}", p))
+    top_scores_list.sort(key=lambda x: -x[1])
+    score_text = ', '.join([f"{s[0]}({s[1]*100:.0f}%)" for s in top_scores_list[:3]])
     insights.append(f"比分预测：λ总≈{lam_total:.1f}球(主{home_lam:.1f}/客{away_lam:.1f})，最常见{score_text}")
+    
+    # Weather insight (if city provided)
+    if home_team:
+        weather_r = None
+        try:
+            weather_r = get_match_weather(home_team)
+        except Exception:
+            pass
+        if weather_r and weather_r.get('ok'):
+            insights.append(f"天气：{weather_r['city']} {weather_r['today'].get('condition','')} {weather_r['today'].get('temp_c','')}°C — {weather_r.get('impact','')}")
     
     # Final: what would the evolution engine say?
     evo_weights = HYPERPARAMS.get('weights', {})
@@ -572,16 +590,23 @@ def free_parlay_calc(matches: int, min_level: int = 2, max_level: int = None,
 # ===== 11. 进化反馈 =====
 @mcp.tool()
 def evolution_feedback(predicted: dict, actual: dict) -> dict:
-    """赛后复盘反馈。分析预测偏差+给出权重调整建议。驱动持续进化。"""
+    """赛后复盘反馈。使用Brier Score(概率预测质量)+方向正确性双维度评估。"""
     p_home = predicted.get('home_win', 0.5)
+    p_draw = predicted.get('draw', 0.25)
+    p_away = predicted.get('away_win', 0.25)
     hg, ag = actual.get('home_goals', 0), actual.get('away_goals', 0)
-    actual_p = 1.0 if hg > ag else (0.5 if hg == ag else 0.0)
-    error = abs(p_home - actual_p)
-    if error > 0.30: suggestion = "偏差>30%: 降低基本面权重,检查诱盘信号"
-    elif error > 0.15: suggestion = "偏差15-30%: 复盘伤病/天气/裁判因素"
-    else: suggestion = "偏差<15%: 模型表现良好"
-    return {"correct": (p_home > 0.5 and hg > ag) or (p_home < 0.5 and hg < ag),
-            "error": round(error, 3), "suggestion": suggestion,
+    # Brier Score: (p - outcome)^2 summed across all outcomes
+    actual_h = 1.0 if hg > ag else 0.0
+    actual_d = 1.0 if hg == ag else 0.0
+    actual_a = 1.0 if hg < ag else 0.0
+    brier = ((p_home - actual_h)**2 + (p_draw - actual_d)**2 + (p_away - actual_a)**2) / 3
+    direction_correct = (p_home > 0.5 and hg > ag) or (p_home < 0.5 and hg < ag)
+    if brier < 0.15: suggestion = f"优秀(Brier={brier:.3f}): 概率校准精准"
+    elif brier < 0.25: suggestion = f"良好(Brier={brier:.3f}): 方向正确,概率可优化"
+    else: suggestion = f"需改进(Brier={brier:.3f}): 检查模型假设或外部因素(伤病/红牌)"
+    return {"direction_correct": direction_correct,
+            "brier_score": round(brier, 4), "suggestion": suggestion,
+            "result": f"{hg}-{ag}",
             "weights": HYPERPARAMS.get('weights', {}),
             "total_evolutions": HYPERPARAMS.get('evolution_memory', {}).get('total_simulations_run', 0)}
 
@@ -813,8 +838,11 @@ def batch_analyze(matches: list, league: str = "", lottery_type: str = "jingcai"
             factors = lf.get('factors', {})
             lam_total = factors.get('avg_goals', 2.5)
             hwr = factors.get('home_win', 0.42)
-            home_ratio = 0.5 + (hwr - 0.40) * 0.5
-            home_lam = lam_total * max(0.45, min(0.55, home_ratio))
+            elo_prob = 1.0 / (1.0 + 10.0 ** ((away_elo - home_elo - 65.0) / 400.0))
+            league_ratio = 0.5 + (hwr - 0.40) * 0.5
+            elo_ratio = 0.5 + (elo_prob - 0.50) * 0.6
+            home_ratio = 0.4 * max(0.45, min(0.55, league_ratio)) + 0.6 * max(0.35, min(0.65, elo_ratio))
+            home_lam = lam_total * home_ratio
             away_lam = lam_total - home_lam
             score_r = score_probability_matrix(home_lam, away_lam)
             
